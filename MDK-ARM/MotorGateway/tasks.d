@@ -1,0 +1,16 @@
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c
+motorgateway\tasks.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+motorgateway\tasks.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+motorgateway\tasks.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
+motorgateway\tasks.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+motorgateway\tasks.o: ../Core/Inc/FreeRTOSConfig.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3/portmacro.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
+motorgateway\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/stack_macros.h
