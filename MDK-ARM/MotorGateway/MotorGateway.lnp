@@ -27,6 +27,15 @@
 "motorgateway\cmsis_os.o"
 "motorgateway\heap_4.o"
 "motorgateway\port.o"
+"motorgateway\key_task.o"
+"motorgateway\led_task.o"
+"motorgateway\uart_task.o"
+"motorgateway\system_ctrl.o"
+"motorgateway\modbus.o"
+"motorgateway\exti.o"
+"motorgateway\key.o"
+"motorgateway\led.o"
+"motorgateway\uart.o"
 --strict --scatter "MotorGateway\MotorGateway.sct"
 --summary_stderr --info summarysizes --map --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

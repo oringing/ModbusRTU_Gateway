@@ -24,6 +24,7 @@
 #include "task.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "uart.h" // 引入 UART 处理函数声明
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -182,6 +183,12 @@ void SysTick_Handler(void)
 /* please refer to the startup file (startup_stm32f1xx.s).                    */
 /******************************************************************************/
 
-/* USER CODE BEGIN 1 */
+/* USER CODE BEGIN 1 */// stm32f1xx_it.c (接线员)
+void USART1_IRQHandler(void) {
+    BSP_UART_IRQHandler(); // 转接给BSP_UART_IRQHandler，后者在 uart.c 中实现
+}
+
+
 
 /* USER CODE END 1 */
+

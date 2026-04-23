@@ -36,3 +36,6 @@ motorgateway\stm32f1xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable
 motorgateway\stm32f1xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
 motorgateway\stm32f1xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
 motorgateway\stm32f1xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
+motorgateway\stm32f1xx_it.o: ../Bsp/Inc/uart.h
+motorgateway\stm32f1xx_it.o: ../Core/Inc/main.h
+motorgateway\stm32f1xx_it.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
