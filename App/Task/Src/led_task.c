@@ -3,13 +3,24 @@
 #include "led.h" // 浣跨敤 BSP 鎻愪緵鐨勬帴鍙?
 #include "cmsis_os.h"
 
+static volatile uint8_t s_led_task_stop = 0U;
+
+void LED_Task_RequestStop(void)
+{
+    s_led_task_stop = 1U;
+}
+
 void Start_LED_Task(void const * argument)
 {
-    for(;;)
+    (void)argument;
+    s_led_task_stop = 0U;
+    while (s_led_task_stop == 0U)
     {
         BSP_LED_Toggle();
         osDelay(500);
     }
+    BSP_LED_Off();
+    osThreadTerminate(NULL);
 }
 
 

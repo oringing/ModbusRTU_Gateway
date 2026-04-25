@@ -1,5 +1,6 @@
 // Bsp/Src/uart.c
 #include "uart.h"
+#include "error_handler.h"
 #include <string.h>
 
 // 内部私有变量
@@ -7,6 +8,117 @@ static UART_HandleTypeDef huart1;
 static uint8_t rx_buffer[BSP_UART_RX_BUF_SIZE];
 static volatile uint16_t rx_count = 0;
 static volatile bool frame_ready = false;
+static volatile bool s_rx_need_recovery = false;
+static volatile uint32_t s_uart_error_count = 0U;
+static volatile uint32_t s_uart_rx_overflow_count = 0U;
+static volatile uint32_t s_uart_ore_count = 0U;
+static volatile uint32_t s_uart_fe_count = 0U;
+static volatile uint32_t s_uart_ne_count = 0U;
+static volatile uint32_t s_uart_pe_count = 0U;
+static volatile uint32_t s_uart_error_streak = 0U;
+static volatile uint32_t s_uart_irq_reentry_count = 0U;
+static volatile uint8_t s_uart_irq_busy = 0U;
+static uint32_t s_last_error_log_tick = 0U;
+static uint32_t s_last_recover_try_tick = 0U;
+static uint32_t s_last_recover_fail_log_tick = 0U;
+static uint32_t s_last_post_frame_restart_log_tick = 0U;
+
+
+
+static bool BSP_UART_StartReceiveByte(void)
+{
+    return (HAL_UART_Receive_IT(&huart1, &rx_buffer[rx_count], 1U) == HAL_OK);
+}
+
+static void BSP_UART_RequestRecoveryFromISR(void)
+{
+    s_rx_need_recovery = true;
+}
+
+static bool BSP_UART_ShouldThrottleLog(void)
+{
+    uint32_t now = HAL_GetTick();
+    if ((now - s_last_error_log_tick) >= UART_ERROR_LOG_THROTTLE_MS) {
+        s_last_error_log_tick = now;
+        return false;
+    }
+    return true;
+}
+
+static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef *huart)
+{
+    bool has_error = false;
+    bool need_immediate_recover = false;
+
+    if (__HAL_UART_GET_FLAG(huart, UART_FLAG_ORE) != RESET) {
+        s_uart_ore_count++;
+        has_error = true;
+        need_immediate_recover = true;
+    }
+    if (__HAL_UART_GET_FLAG(huart, UART_FLAG_FE) != RESET) {
+        s_uart_fe_count++;
+        has_error = true;
+    }
+    if (__HAL_UART_GET_FLAG(huart, UART_FLAG_NE) != RESET) {
+        s_uart_ne_count++;
+        has_error = true;
+    }
+    if (__HAL_UART_GET_FLAG(huart, UART_FLAG_PE) != RESET) {
+        s_uart_pe_count++;
+        has_error = true;
+    }
+
+    if (!has_error) {
+        s_uart_error_streak = 0U;
+        return;
+    }
+
+    s_uart_error_count++;
+    s_uart_error_streak++;
+
+    /* Clear PE/FE/NE/ORE chain on F1 series. */
+    __HAL_UART_CLEAR_PEFLAG(huart);
+
+    if (need_immediate_recover || (s_uart_error_streak >= UART_ERROR_STREAK_RECOVER_TH)) {
+        BSP_UART_RequestRecoveryFromISR();
+    }
+
+    if (!BSP_UART_ShouldThrottleLog()) {
+        ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
+    }
+}
+
+static void BSP_UART_RecoveryIfNeeded(void)
+{
+    if (!s_rx_need_recovery) {
+        return;
+    }
+
+    /* Avoid hot-loop retries in task polling path. */
+    if ((HAL_GetTick() - s_last_recover_try_tick) < 5U) {
+        return;
+    }
+    s_last_recover_try_tick = HAL_GetTick();
+
+    __disable_irq();
+    s_rx_need_recovery = false;
+    rx_count = 0U;
+    frame_ready = false;
+    __enable_irq();
+
+    HAL_StatusTypeDef st = HAL_UART_Receive_IT(&huart1, &rx_buffer[rx_count], 1U);
+    if (st != HAL_OK) {
+        /* HAL_BUSY is expected transiently when RX state has not fully released. */
+        s_rx_need_recovery = true;
+        if (st != HAL_BUSY) {
+            s_uart_error_count++;
+            if ((HAL_GetTick() - s_last_recover_fail_log_tick) >= 1000U) {
+                s_last_recover_fail_log_tick = HAL_GetTick();
+                ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
+            }
+        }
+    }
+}
 
 void BSP_UART_Init(void)
 {
@@ -62,7 +174,15 @@ void BSP_UART_Init(void)
     __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
     
     // 5. 启动首次接收（触发后续的中断链）
-    HAL_UART_Receive_IT(&huart1, &rx_buffer[0], 1);
+    rx_count = 0U;
+    frame_ready = false;
+    s_rx_need_recovery = false;
+    if (!BSP_UART_StartReceiveByte())
+    {
+        s_uart_error_count++;
+        ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
+        Error_Handler();
+    }
 
     // 初始化标记引脚为高电平
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
@@ -100,14 +220,35 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
             rx_count++;
             if (rx_count < BSP_UART_RX_BUF_SIZE)
             {
-                HAL_UART_Receive_IT(huart, &rx_buffer[rx_count], 1);
+                if (HAL_UART_Receive_IT(huart, &rx_buffer[rx_count], 1U) != HAL_OK)
+                {
+                    s_uart_error_count++;
+                    frame_ready = true;
+                    BSP_UART_RequestRecoveryFromISR();
+                }
             }
             else
             {
+                s_uart_rx_overflow_count++;
                 frame_ready = true;
             }
         }
+        else
+        {
+            s_uart_rx_overflow_count++;
+            frame_ready = true;
+        }
     }
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart == NULL || huart->Instance != USART1) {
+        return;
+    }
+
+    BSP_UART_ClassifyAndHandleErrorsFromISR(huart);
+    frame_ready = true;
 }
 // 串口空闲中断处理（在 stm32f1xx_it.c 中调用，或者在这里处理）
 // 注意：HAL 库的空闲中断通常需要用户在 IT_Handler 中清除标志位并调用此逻辑
@@ -123,31 +264,78 @@ void BSP_UART_IRQHandler(void)
         }
     }
 
+    /* Light isolation around HAL IRQ path to avoid recursive storm. */
+    if (s_uart_irq_busy != 0U) {
+        s_uart_irq_reentry_count++;
+        if (s_uart_irq_reentry_count >= UART_IRQ_REENTRY_RECOVER_TH) {
+            s_uart_error_count++;
+            __HAL_UART_CLEAR_PEFLAG(&huart1);
+            BSP_UART_RequestRecoveryFromISR();
+            s_uart_irq_reentry_count = 0U;
+        }
+        return;
+    }
+
+    s_uart_irq_busy = 1U;
     HAL_UART_IRQHandler(&huart1);
+    s_uart_irq_busy = 0U;
+
+    /* Classify possible line errors and trigger recover policy by severity. */
+    BSP_UART_ClassifyAndHandleErrorsFromISR(&huart1);
 }
 
 
 bool BSP_UART_IsFrameReady(void)
 {
+    BSP_UART_RecoveryIfNeeded();
     return frame_ready;
 }
 
 uint16_t BSP_UART_ReadFrame(uint8_t *buffer, uint16_t max_len)
 {
-    uint16_t len = 0;
+    uint16_t snapshot_len = 0U;
+    uint16_t copy_len = 0U;
+    bool need_restart = false;
+
+    BSP_UART_RecoveryIfNeeded();
+
+    if (buffer == NULL || max_len == 0U) {
+        return 0U;
+    }
 
     __disable_irq();
     if (frame_ready) {
-        len = (rx_count < max_len) ? rx_count : max_len;
-        memcpy(buffer, rx_buffer, len);
-
-        // 重置并重启接收链
-        rx_count = 0;
+        snapshot_len = rx_count;
+        rx_count = 0U;
         frame_ready = false;
-        HAL_UART_Receive_IT(&huart1, &rx_buffer[0], 1);
+        need_restart = true;
     }
     __enable_irq();
 
-    return len;
+    if (snapshot_len > 0U) {
+        copy_len = (snapshot_len < max_len) ? snapshot_len : max_len;
+        memcpy(buffer, rx_buffer, copy_len);
+    }
+
+    if (need_restart) {
+        HAL_StatusTypeDef st = HAL_BUSY;
+        if (huart1.RxState == HAL_UART_STATE_READY) {
+            st = HAL_UART_Receive_IT(&huart1, &rx_buffer[rx_count], 1U);
+        }
+
+        if (st != HAL_OK) {
+            /* Busy means RX is still active/transient; let recovery path retry. */
+            s_rx_need_recovery = true;
+            if (st != HAL_BUSY) {
+                s_uart_error_count++;
+                if ((HAL_GetTick() - s_last_post_frame_restart_log_tick) >= 1000U) {
+                    s_last_post_frame_restart_log_tick = HAL_GetTick();
+                    ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
+                }
+            }
+        }
+    }
+
+    return copy_len;
 }
 

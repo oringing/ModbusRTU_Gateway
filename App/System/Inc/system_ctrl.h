@@ -12,6 +12,7 @@ extern "C" {
 typedef enum {
     SYSTEM_OK = 0,
     SYSTEM_ERR_NULL_PTR,
+    SYSTEM_ERR_CONFIG_INVALID,
     SYSTEM_ERR_TASK_CREATE_LED,
     SYSTEM_ERR_TASK_CREATE_UART,
     SYSTEM_ERR_TASK_CREATE_MONITOR
@@ -20,17 +21,12 @@ typedef enum {
 void System_Init(void);
 void System_Ctrl_Init(void);
 SystemStatus_t System_StartTasks(void);
+void System_StopTasks(void);
 SystemStatus_t System_GetLastError(void);
 
-osThreadId System_CreateTask(const char *name,
-                             void (*taskFunc)(void const *argument),
-                             osPriority priority,
-                             uint32_t stackSize);
+osThreadId System_CreateTask(const char *name,void (*taskFunc)(void const *argument),osPriority priority,uint32_t stackSize);
 void System_DestroyTask(osThreadId taskID);
 uint32_t System_GetStackWatermark(osThreadId taskID);
-void System_RegisterTaskHandles(osThreadId ledTask, osThreadId uartTask, osThreadId monitorTask);
-
-void System_StartMonitor(void);
 void System_CheckStackWatermark(void);
 void System_Check_Stack_Watermark(void);
 

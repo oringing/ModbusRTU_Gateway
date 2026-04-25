@@ -1,102 +1,117 @@
-# MotorGateway 项目
+# ModbusRTU\_Gateway
 
-## 项目简介
+基于 STM32F103C8T6 + FreeRTOS + MAX485 的 Modbus RTU 从机网关项目。当前版本聚焦于通信链路稳定性、任务生命周期管理和错误恢复能力。
 
-MotorGateway 是一个基于 STM32F103C8T6 的电机控制网关项目，主要功能包括：
+## 当前实现状态
 
-- FreeRTOS 多任务调度
-- LED 状态指示
-- UART 通信
-- 电位器控制舵机（计划功能）
-- 电机驱动控制（计划功能）
+- 已实现 Modbus RTU 从机 `0x03`（读保持寄存器）
+- 已实现 UART 中断接收 + 空闲帧判定 + 帧缓冲读取
+- 已实现任务统一创建/停止（`System_StartTasks()` / `System_StopTasks()`）
+- 已实现启动配置校验（fail-fast）和安全模式停机
+- 已实现 UART 错误分级、恢复重试与日志限频
 
-## 硬件要求
+## 硬件与软件环境
 
-- **主控板**：STM32F103C8T6 最小系统板
-- **调试器**：ST-LINK V2
-- **外设**：
-  - LED（板载 PC13）
-  - USART1 串口（PA9/PA10）
-  - 电位器（计划）
-  - 舵机（计划）
-  - 电机驱动（计划）
+- MCU：STM32F103C8T6
+- 调试器：ST-LINK V2
+- 收发器：TTL转RS485模块（支持3.3V工作电压）
+- IDE：Keil MDK v5，VScode
+- 固件库：STM32 HAL (F1)
+- RTOS：FreeRTOS（CMSIS-RTOS v1 接口）
 
-## 软件环境
+## 硬件连接与图片
 
-- **IDE**：Keil MDK v5.x
-- **固件库**：STM32F1 HAL 库
-- **RTOS**：FreeRTOS
-- **工具**：STM32CubeMX
+### 1. 系统整体与主从硬件
 
-## 项目结构
+![系统整体图](docs/images/整体图V1.0.jpg)
+![MAX485从机端图解](docs/images/max485从机端图解.jpg)
+![MAX485主机硬件图](docs/images/max485主机硬件图.jpg)
 
+### 2. TTL 转 RS485 模块说明与接线
+
+![TTL转RS485模块介绍](docs/images/TTL转RS485模块介绍.jpg)
+![TTL转RS485模块特点](docs/images/TTL转RS485模块特点.jpg)
+![TTL转RS485模块外形与接线](docs/images/TTL转RS485模块外形与接线.jpg)
+
+### 3. 关键接线要点（务必检查）
+
+- USART1：`PA9(TX)`、`PA10(RX)`
+- RS485：`A/B` 极性必须与主机一致
+- 电源地：主从与USB转串口必须共地
+- 工业现场：建议增加板级外部上拉/终端电阻，`GPIO_PULLUP` 仅作辅助
+
+## 目录结构
+
+```text
+ModbusRTU_Gateway/
+├── Core/                 # 启动、时钟、中断、main
+├── Bsp/                  # 硬件抽象层（UART/LED/KEY/EXTI）
+├── App/
+│   ├── Driver/           # OS 相关驱动封装（UART 互斥发送）
+│   ├── Protocol/         # Modbus 协议处理
+│   ├── System/           # 系统控制、错误处理、配置
+│   └── Task/             # LED/UART/Monitor 任务
+├── MDK-ARM/              # Keil 工程文件
+└── docs/                 # 项目文档与记录
 ```
-MotorGateway/
-├── Core/
-│   ├── Inc/         # 头文件
-│   └── Src/         # 源代码
-├── Drivers/         # 驱动文件
-├── docs/            # 文档
-│   └── STM32F10xxx参考手册（中文）.pdf
-├── MDK-ARM/         # Keil 项目文件
-└── Readme.md        # 项目说明
+
+## 启动流程
+
+1. `main()` 完成 `HAL_Init()` 与时钟初始化
+2. 初始化 BSP 与协议：`BSP_LED_Init()`、`BSP_UART_Init()`、`Modbus_Init()`
+3. `System_Ctrl_Init()` 做配置校验，失败直接 `Error_Handler()`
+4. `System_StartTasks()` 创建 LED/UART/Monitor 任务
+5. `osKernelStart()` 启动调度器
+
+## 任务与配置（当前）
+
+- `LED_Task`：500ms 翻转 LED
+- `UART_Task`：周期调用 `Modbus_Process()`
+- `Monitor_Task`：周期输出任务栈高水位
+
+主要配置见 `App/System/Inc/system_config.h`：
+
+- `LED_TASK_STACK_SIZE = 64`
+- `UART_TASK_STACK_SIZE = 128`
+- `MONITOR_TASK_STACK_SIZE = 256`
+- `LED_TASK_PRIORITY = osPriorityLow`
+- `UART_TASK_PRIORITY = osPriorityHigh`
+- `MONITOR_TASK_PRIORITY = osPriorityBelowNormal`
+
+## Modbus 通信说明
+
+- 从机地址：`1`
+- 支持功能码：`0x03`
+- 寄存器数量：`MODBUS_REG_MAX_COUNT = 10`
+- 接收/响应缓冲：`256` 字节
+
+测试报文示例（读 2 个寄存器）：
+
+```text
+01 03 00 00 00 02 C4 0B
 ```
 
-## 主要功能模块
+## 编译与下载
 
-### 1. 系统初始化
-- 时钟配置（72MHz）
-- GPIO 初始化
-- UART 初始化
-- FreeRTOS 初始化
+1. 打开工程：`MDK-ARM/ModbusRTU_Gateway.uvprojx`
+2. 选择目标并编译
+3. 使用 ST-LINK 下载并调试
 
-### 2. 任务管理
-- **LED 任务**：500ms 闪烁一次，指示系统运行状态
-- **UART 任务**：1s 发送一次状态信息，用于调试
+## 调试与排障要点
 
-### 3. 通信模块
-- USART1 串口（115200bps）
-- 支持 printf 重定向
+- 串口错误日志格式：`ERR[类型] 文件:行号`
+- 若 LED 常亮且无任务输出，优先检查是否进入 `System_EnterSafeMode()`
+- 若 `ERR[2]` 高频刷屏，优先检查 UART 恢复路径是否误判 `HAL_BUSY`
+- Modbus 测试请使用 HEX 模式、关闭自动换行、确认主从波特率一致
+- 若图片不显示，请确认文件已放入 `docs/images/` 且文件名与 README 中一致
 
-### 4. 计划功能
-- ADC 采样（电位器）
-- PWM 生成（舵机控制）
-- 电机驱动控制
+## 已知约束
 
-## 编译与烧录
+- 目前仅实现 `0x03 功能码`，写寄存器等功能码未完整实现
+- 工业干扰场景下，`GPIO_PULLUP` 仅作辅助，建议板级外部上拉/终端电阻配合
 
-1. **打开项目**：使用 Keil MDK 打开 `MDK-ARM/MotorGateway.uvprojx`
-2. **编译**：点击 Build 按钮编译项目
-3. **烧录**：使用 ST-LINK V2 烧录到 STM32F103C8T6
+## 下一步建议
 
-## 调试说明
+- 按实际运行数据持续回归任务栈与优先级策略
+- 补全协议异常码覆盖、边界帧测试与长稳测试（24h+）
 
-- **LED 状态**：PC13 闪烁表示系统运行正常
-- **串口输出**：通过 PA9/PA10 连接 USB 转 TTL 模块，使用串口助手查看输出
-- **调试工具**：可使用逻辑分析仪监控串口波形
-
-## 常见问题
-
-- **ST-LINK 连接失败**：尝试复位状态连接
-- **串口无输出**：检查 PA9/PA10 连接
-- **LED 不闪烁**：检查任务调度和 GPIO 配置
-
-## 学习资源
-
-- **参考手册**：STM32F103 Reference Manual (RM0008)
-- **HAL 库文档**：STM32F1 HAL 库用户手册
-- **FreeRTOS 文档**：FreeRTOS 官方文档
-
-## 版本历史
-
-- **v1.0.0**：基础框架搭建，实现 LED 闪烁和 UART 通信
-
-## 许可证
-
-本项目采用 MIT 许可证，详见 LICENSE 文件。
-
-## 联系方式
-
-- **作者**：[您的姓名]
-- **邮箱**：[您的邮箱]
-- **日期**：2026-04-14

@@ -1,0 +1,12 @@
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3/port.c
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+modbusrtu_gateway\port.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
+modbusrtu_gateway\port.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+modbusrtu_gateway\port.o: ../Core/Inc/FreeRTOSConfig.h
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3/portmacro.h
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+modbusrtu_gateway\port.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h

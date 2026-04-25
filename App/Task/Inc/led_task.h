@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 void Start_LED_Task(void const * argument);
+void LED_Task_RequestStop(void);
 
 #ifdef __cplusplus
 }

@@ -11,6 +11,7 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Start_Monitor_Task(void const * argument);
+void Monitor_Task_RequestStop(void);
 void Check_Stack_Watermark(void);
 
 #ifdef __cplusplus

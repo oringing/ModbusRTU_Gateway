@@ -3,8 +3,8 @@
  * Auto generated Run-Time-Environment Component Configuration File
  *      *** Do not modify ! ***
  *
- * Project: 'MotorGateway' 
- * Target:  'MotorGateway' 
+ * Project: 'ModbusRTU_Gateway' 
+ * Target:  'ModbusRTU_Gateway' 
  */
 
 #ifndef RTE_COMPONENTS_H

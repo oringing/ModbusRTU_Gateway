@@ -472,16 +472,16 @@ ARM Macro Assembler    Page 8
               00000400 
               00000000 
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M3 --apcs=interw
-ork --depend=motorgateway\startup_stm32f103xb.d -omotorgateway\startup_stm32f10
-3xb.o -I../Core/Inc -I../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I../Drivers/S
-TM32F1xx_HAL_Driver/Inc -I../Middlewares/Third_Party/FreeRTOS/Source/include -I
-../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middlewares/Third_Pa
-rty/FreeRTOS/Source/portable/RVDS/ARM_CM3 -I../Drivers/CMSIS/Device/ST/STM32F1x
-x/Include -I../Drivers/CMSIS/Include -ID:\STM32\myproject\MotorGateway\MDK-ARM\
-RTE -ID:\Keil_v5\ARM\PACK\ARM\CMSIS\4.2.0\CMSIS\Include -ID:\Keil_v5\ARM\PACK\K
-eil\STM32F1xx_DFP\1.0.5\Device\Include --predefine="__UVISION_VERSION SETA 514"
- --predefine="_RTE_ SETA 1" --predefine="STM32F10X_MD SETA 1" --list=startup_st
-m32f103xb.lst startup_stm32f103xb.s
+ork --depend=modbusrtu_gateway\startup_stm32f103xb.d -omodbusrtu_gateway\startu
+p_stm32f103xb.o -I../Core/Inc -I../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I..
+/Drivers/STM32F1xx_HAL_Driver/Inc -I../Middlewares/Third_Party/FreeRTOS/Source/
+include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middleware
+s/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3 -I../Drivers/CMSIS/Device/S
+T/STM32F1xx/Include -I../Drivers/CMSIS/Include -ID:\STM32\myproject\ModbusRTU_G
+ateway\MDK-ARM\RTE -ID:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\1.0.5\Device\Includ
+e -ID:\Keil_v5\ARM\CMSIS\Include --predefine="__UVISION_VERSION SETA 514" --pre
+define="_RTE_ SETA 1" --predefine="STM32F10X_MD SETA 1" --list=startup_stm32f10
+3xb.lst startup_stm32f103xb.s
 
 
 

@@ -83,7 +83,7 @@ void Modbus_Process(void)
         error_response[3] = (uint8_t)(error_crc & 0xFFU);
         error_response[4] = (uint8_t)((error_crc >> 8U) & 0xFFU);
 
-        (void)UART_Driver_Send(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, UART_SEND_TIMEOUT);
+        (void)UART_Driver_Send(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, BSP_UART_TX_TIMEOUT);
         return;
     }
 
@@ -102,7 +102,6 @@ void Modbus_Process(void)
     modbus_tx_buffer[resp_data_len] = (uint8_t)(resp_crc & 0xFFU);
     modbus_tx_buffer[resp_data_len + 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
-    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + 2U), UART_SEND_TIMEOUT);
+    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + 2U), BSP_UART_TX_TIMEOUT);
 }
-
 

@@ -1,0 +1,13 @@
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
+modbusrtu_gateway\heap_4.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+modbusrtu_gateway\heap_4.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
+modbusrtu_gateway\heap_4.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+modbusrtu_gateway\heap_4.o: ../Core/Inc/FreeRTOSConfig.h
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3/portmacro.h
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+modbusrtu_gateway\heap_4.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h

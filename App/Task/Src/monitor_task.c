@@ -6,6 +6,13 @@
 #include "system_ctrl.h"
 #include "system_config.h"
 
+static volatile uint8_t s_monitor_task_stop = 0U;
+
+void Monitor_Task_RequestStop(void)
+{
+    s_monitor_task_stop = 1U;
+}
+
 /**
   * @brief  Monitor task function
   * @param  argument: pointer that is passed to the function as start argument
@@ -13,9 +20,11 @@
   */
 void Start_Monitor_Task(void const * argument)
 {
+    (void)argument;
     uint32_t check_counter = 0;
+    s_monitor_task_stop = 0U;
     
-    for(;;)
+    while (s_monitor_task_stop == 0U)
     {
         check_counter++;
         if(check_counter >= STACK_WATERMARK_CHECK_INTERVAL) {  // 姣忛殧5绉掓娴嬩竴娆★紙鍋囪osDelay(100)锛?
@@ -25,5 +34,6 @@ void Start_Monitor_Task(void const * argument)
         
         osDelay(STACK_WATERMARK_LOG_DELAY);  // 寤惰繜100ms
     }
+    osThreadTerminate(NULL);
 }
 

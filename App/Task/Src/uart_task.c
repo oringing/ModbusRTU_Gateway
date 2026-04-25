@@ -4,24 +4,25 @@
 #include "modbus.h"
 #include "cmsis_os.h"
 
-/* 瀹氫箟浠诲姟鍙ユ焺鍙橀噺锛屾敼涓洪潤鎬侊紝鍙湪姝ゆ枃浠跺唴鍙 */
-static osThreadId uart_task_handler;
+// --- UART task ---
+static volatile uint8_t s_uart_task_stop = 0U;
 
-/* 瀹炵幇鑾峰彇浠诲姟鍙ユ焺鐨勫嚱鏁?*/
-osThreadId GetUartTaskHandle(void)
+void UART_Task_RequestStop(void)
 {
-    return uart_task_handler;
+    s_uart_task_stop = 1U;
 }
 
 void Start_UART_Task(void const * argument)
 {
-    uart_task_handler = osThreadGetId();
+    (void)argument;
+    s_uart_task_stop = 0U;
 
-    while (1)
+    while (s_uart_task_stop == 0U)
     {
         Modbus_Process();
         osDelay(1);
     }
+    osThreadTerminate(NULL);
 }
 
 
