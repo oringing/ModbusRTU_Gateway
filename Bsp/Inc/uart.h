@@ -13,8 +13,9 @@
 #define BSP_UART_RX_PIN         GPIO_PIN_10
 #define BSP_UART_GPIO_PORT      GPIOA
 
-#define BSP_UART_RX_BUF_SIZE    128
-#define BSP_UART_TX_TIMEOUT     100
+#define BSP_UART_RX_BUF_SIZE    128        // 串口接收缓冲区大小
+#define BSP_UART_TX_TIMEOUT     5          // 串口发送超时(ms)，原值2改为5
+#define UART_SEND_TIMEOUT       5          // 串口发送超时时间
 
 // 函数声明
 void BSP_UART_Init(void);
@@ -26,4 +27,3 @@ uint16_t BSP_UART_ReadFrame(uint8_t *buffer, uint16_t max_len);
 void BSP_UART_IRQHandler(void);
 
 #endif /* __UART_H__ */
-

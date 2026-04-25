@@ -1,5 +1,5 @@
-motorgateway\uart_task.o: ..\App\Src\uart_task.c
-motorgateway\uart_task.o: ../App/Inc/uart_task.h
+motorgateway\uart_task.o: ..\App\Task\Src\uart_task.c
+motorgateway\uart_task.o: ../App/Task/Inc/uart_task.h
 motorgateway\uart_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 motorgateway\uart_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
 motorgateway\uart_task.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
@@ -43,6 +43,6 @@ motorgateway\uart_task.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.
 motorgateway\uart_task.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 motorgateway\uart_task.o: ../Core/Inc/main.h
 motorgateway\uart_task.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
-motorgateway\uart_task.o: ../App/Inc/modbus.h
+motorgateway\uart_task.o: ../App/Protocol/Inc/modbus.h
 motorgateway\uart_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-motorgateway\uart_task.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+motorgateway\uart_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

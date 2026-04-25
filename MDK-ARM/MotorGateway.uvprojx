@@ -602,6 +602,11 @@
               <FileType>1</FileType>
               <FilePath>..\App\Src\modbus.c</FilePath>
             </File>
+            <File>
+              <FileName>monitor_task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Src\monitor_task.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

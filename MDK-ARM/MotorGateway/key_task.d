@@ -1,1 +1,1 @@
-motorgateway\key_task.o: ..\App\Src\key_task.c
+motorgateway\key_task.o: ..\App\Task\Src\key_task.c

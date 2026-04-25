@@ -1,23 +1,19 @@
 // Bsp/Src/uart.c
 #include "uart.h"
-#include "modbus.h"
 #include <string.h>
-#include "cmsis_os.h"
-#include "task.h"   
-#include "FreeRTOS.h"
 
 // 内部私有变量
 static UART_HandleTypeDef huart1; 
 static uint8_t rx_buffer[BSP_UART_RX_BUF_SIZE];
 static volatile uint16_t rx_count = 0;
 static volatile bool frame_ready = false;
-static osMutexId uart_mutex = NULL; // FreeRTOS 互斥量句柄
 
 void BSP_UART_Init(void)
 {
     // 1. 使能时钟
     __HAL_RCC_USART1_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
 	  
     // 2. 配置 GPIO (分开配置 TX 和 RX，确保 RX 强上拉)
     GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -28,6 +24,7 @@ void BSP_UART_Init(void)
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(BSP_UART_GPIO_PORT, &GPIO_InitStruct);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
 
     // --- 配置 RX (PA10) ---
     GPIO_InitStruct.Pin = BSP_UART_RX_PIN;
@@ -35,6 +32,13 @@ void BSP_UART_Init(void)
     GPIO_InitStruct.Pull = GPIO_PULLUP;       // 强上拉，对抗干扰
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(BSP_UART_GPIO_PORT, &GPIO_InitStruct);
+    
+    // --- 配置标记引脚 (PB0) ---
+    GPIO_InitStruct.Pin = GPIO_PIN_0;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     // 3. 配置 UART
     huart1.Instance = BSP_UART_INSTANCE;
@@ -60,39 +64,25 @@ void BSP_UART_Init(void)
     // 5. 启动首次接收（触发后续的中断链）
     HAL_UART_Receive_IT(&huart1, &rx_buffer[0], 1);
 
-}
+    // 初始化标记引脚为高电平
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
 
-// 延迟初始化 Mutex，确保在 RTOS 运行后调用
-static void UART_EnsureMutex(void) {
-    //osMutexDef(UartMutex);
-    //uart_mutex = osMutexCreate(osMutex(UartMutex));
-
-    if (uart_mutex == NULL && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
-        osMutexDef(UartMutex);
-        uart_mutex = osMutexCreate(osMutex(UartMutex));
-    }
 }
 
 bool BSP_UART_Send(const uint8_t *data, uint16_t len, uint32_t timeout)
 {
-    UART_EnsureMutex();
-    
-    // 如果 mutex 仍然为 NULL，尝试创建一次
-    if (uart_mutex == NULL) {
-        osMutexDef(UartMutex);
-        uart_mutex = osMutexCreate(osMutex(UartMutex));
-        if (uart_mutex == NULL) {
-            return false; // 创建失败，返回错误
-        }
-    }
+    // 产生一个下降沿脉冲，标记发送开始
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);  // 拉低标记引脚 (PB0)
 
     bool status = false;
-    if (osMutexWait(uart_mutex, timeout) == osOK) {
+    if ((data != NULL) && (len > 0U)) {
         status = (HAL_UART_Transmit(&huart1, (uint8_t*)data, len, timeout) == HAL_OK);
-        osMutexRelease(uart_mutex);
     }
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);    // 拉高标记引脚
     return status;
 }
+
 
 
 void BSP_UART_PrintString(const char *str)
@@ -123,11 +113,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 // 注意：HAL 库的空闲中断通常需要用户在 IT_Handler 中清除标志位并调用此逻辑
 void BSP_UART_IRQHandler(void)
 {
-    
     if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE) != RESET)
     {
         __HAL_UART_CLEAR_IDLEFLAG(&huart1);
-       
+
         if (rx_count > 0)
         {
             frame_ready = true;
@@ -145,16 +134,20 @@ bool BSP_UART_IsFrameReady(void)
 
 uint16_t BSP_UART_ReadFrame(uint8_t *buffer, uint16_t max_len)
 {
-    if (!frame_ready) return 0;
-    
-    uint16_t len = (rx_count < max_len) ? rx_count : max_len;
-    memcpy(buffer, rx_buffer, len);
-    
-    // 重置并重启接收链
-    rx_count = 0;
-    frame_ready = false;
-    HAL_UART_Receive_IT(&huart1, &rx_buffer[0], 1);
-    
+    uint16_t len = 0;
+
+    __disable_irq();
+    if (frame_ready) {
+        len = (rx_count < max_len) ? rx_count : max_len;
+        memcpy(buffer, rx_buffer, len);
+
+        // 重置并重启接收链
+        rx_count = 0;
+        frame_ready = false;
+        HAL_UART_Receive_IT(&huart1, &rx_buffer[0], 1);
+    }
+    __enable_irq();
+
     return len;
 }
 

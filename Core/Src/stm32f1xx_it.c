@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "uart.h" // 引入 UART 处理函数声明
+#include "error_handler.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -87,7 +88,8 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-
+  ErrorLogRecord(ERROR_HARDFAULT, __FILE__, __LINE__);
+  System_HandleFault(ERROR_HARDFAULT);
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
@@ -102,7 +104,8 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
+  ErrorLogRecord(ERROR_MEMMANAGE, __FILE__, __LINE__);
+  System_HandleFault(ERROR_MEMMANAGE);
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
   {
@@ -117,7 +120,8 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
-
+  ErrorLogRecord(ERROR_BUSFAULT, __FILE__, __LINE__);
+  System_HandleFault(ERROR_BUSFAULT);
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
   {
@@ -132,7 +136,8 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
-
+  ErrorLogRecord(ERROR_USAGEFAULT, __FILE__, __LINE__);
+  System_HandleFault(ERROR_USAGEFAULT);
   /* USER CODE END UsageFault_IRQn 0 */
   while (1)
   {

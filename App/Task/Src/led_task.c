@@ -1,6 +1,6 @@
-// App/Src/led_task.c
+// App/Src/task/led_task.c
 #include "led_task.h"
-#include "led.h" // 使用 BSP 提供的接口
+#include "led.h" // 浣跨敤 BSP 鎻愪緵鐨勬帴鍙?
 #include "cmsis_os.h"
 
 void Start_LED_Task(void const * argument)
@@ -11,4 +11,5 @@ void Start_LED_Task(void const * argument)
         osDelay(500);
     }
 }
+
 

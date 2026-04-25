@@ -39,3 +39,4 @@ motorgateway\stm32f1xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/
 motorgateway\stm32f1xx_it.o: ../Bsp/Inc/uart.h
 motorgateway\stm32f1xx_it.o: ../Core/Inc/main.h
 motorgateway\stm32f1xx_it.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+motorgateway\stm32f1xx_it.o: ../App/System/Inc/error_handler.h

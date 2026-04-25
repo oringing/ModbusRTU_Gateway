@@ -71,6 +71,7 @@
 #define configUSE_MUTEXES                        1
 #define configQUEUE_REGISTRY_SIZE                8
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION  1
+#define configUSE_TRACE_FACILITY                 1
 /* USER CODE BEGIN MESSAGE_BUFFER_LENGTH_TYPE */
 /* Defaults to size_t for backward compatibility, but can be changed
    if lengths will always be less than the number of bytes in a size_t. */
@@ -91,6 +92,9 @@ to exclude the API function. */
 #define INCLUDE_vTaskDelayUntil              0
 #define INCLUDE_vTaskDelay                   1
 #define INCLUDE_xTaskGetSchedulerState       1
+#define INCLUDE_vTaskGetInfo                 1
+#define INCLUDE_uxTaskGetStackHighWaterMark  1
+#define configCHECK_FOR_STACK_OVERFLOW       2
 
 /* Cortex-M specific definitions. */
 #ifdef __NVIC_PRIO_BITS
