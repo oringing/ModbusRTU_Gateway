@@ -47,7 +47,6 @@ modbusrtu_gateway\main.o: ../Bsp/Inc/uart.h
 modbusrtu_gateway\main.o: ../Core/Inc/main.h
 modbusrtu_gateway\main.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 modbusrtu_gateway\main.o: ../App/Protocol/Inc/modbus.h
-modbusrtu_gateway\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 modbusrtu_gateway\main.o: ../App/System/Inc/system_ctrl.h
 modbusrtu_gateway\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 modbusrtu_gateway\main.o: ../App/System/Inc/error_handler.h

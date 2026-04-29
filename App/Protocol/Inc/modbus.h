@@ -22,6 +22,10 @@ extern "C" {
 #define MODBUS_EXCEPTION_RESPONSE_SIZE   5
 #define MODBUS_POLL_INTERVAL             10
 
+#define MODBUS_EX_ILLEGAL_FUNCTION       0x01U
+#define MODBUS_EX_ILLEGAL_DATA_ADDRESS   0x02U
+#define MODBUS_EX_ILLEGAL_DATA_VALUE     0x03U
+
 typedef void (*ModbusRegisterOnChange_t)(uint16_t old_value, uint16_t new_value);
 
 void Modbus_Init(void);

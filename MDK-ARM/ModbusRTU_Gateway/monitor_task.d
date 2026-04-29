@@ -18,5 +18,6 @@ modbusrtu_gateway\monitor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/inc
 modbusrtu_gateway\monitor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
 modbusrtu_gateway\monitor_task.o: ../App/System/Inc/system_ctrl.h
 modbusrtu_gateway\monitor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
+modbusrtu_gateway\monitor_task.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 modbusrtu_gateway\monitor_task.o: ../App/System/Inc/system_config.h
 modbusrtu_gateway\monitor_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

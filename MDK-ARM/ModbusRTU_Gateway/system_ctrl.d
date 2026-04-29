@@ -16,10 +16,10 @@ modbusrtu_gateway\system_ctrl.o: ../Middlewares/Third_Party/FreeRTOS/Source/incl
 modbusrtu_gateway\system_ctrl.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h
 modbusrtu_gateway\system_ctrl.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 modbusrtu_gateway\system_ctrl.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
+modbusrtu_gateway\system_ctrl.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 modbusrtu_gateway\system_ctrl.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 modbusrtu_gateway\system_ctrl.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 modbusrtu_gateway\system_ctrl.o: ../App/Driver/Inc/driver_uart.h
-modbusrtu_gateway\system_ctrl.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 modbusrtu_gateway\system_ctrl.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 modbusrtu_gateway\system_ctrl.o: ../Bsp/Inc/uart.h
 modbusrtu_gateway\system_ctrl.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h
@@ -56,5 +56,4 @@ modbusrtu_gateway\system_ctrl.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSI
 modbusrtu_gateway\system_ctrl.o: ../App/System/Inc/system_config.h
 modbusrtu_gateway\system_ctrl.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 modbusrtu_gateway\system_ctrl.o: ../App/Protocol/Inc/modbus.h
-modbusrtu_gateway\system_ctrl.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 modbusrtu_gateway\system_ctrl.o: ../App/System/Inc/error_handler.h

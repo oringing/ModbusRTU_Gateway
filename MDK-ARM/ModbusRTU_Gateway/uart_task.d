@@ -45,4 +45,3 @@ modbusrtu_gateway\uart_task.o: ../Core/Inc/main.h
 modbusrtu_gateway\uart_task.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 modbusrtu_gateway\uart_task.o: ../App/Protocol/Inc/modbus.h
 modbusrtu_gateway\uart_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
-modbusrtu_gateway\uart_task.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

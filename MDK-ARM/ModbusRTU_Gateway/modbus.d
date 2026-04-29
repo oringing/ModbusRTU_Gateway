@@ -44,4 +44,3 @@ modbusrtu_gateway\modbus.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/q
 modbusrtu_gateway\modbus.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h
 modbusrtu_gateway\modbus.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
 modbusrtu_gateway\modbus.o: ../App/Protocol/Inc/modbus.h
-modbusrtu_gateway\modbus.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

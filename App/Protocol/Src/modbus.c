@@ -21,6 +21,10 @@ static const uint16_t s_default_regs[] = {
     0x1234U, 0x5678U, 0xABCDU, 0x1234U, 0x5000U
 };
 
+static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8_t *func_code);
+static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_len);
+static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count);
+
 static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value)
 {
     (void)old_value;
@@ -56,6 +60,79 @@ static void Modbus_SendException(uint8_t func_code, uint8_t exception_code)
     error_response[4] = (uint8_t)((error_crc >> 8U) & 0xFFU);
 
     (void)UART_Driver_Send(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, BSP_UART_TX_TIMEOUT);
+}
+
+static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8_t *func_code)
+{
+    if (frame == NULL || func_code == NULL) {
+        return false;
+    }
+
+    if (frame_len < MODBUS_RTU_READ_REQ_LEN) {
+        return false;
+    }
+
+    if (frame[0] != MODBUS_SLAVE_ADDR) {
+        return false;
+    }
+
+    /* Modbus RTU CRC in frame order: low byte first, high byte second in the frame.
+     * But when recombining to 16-bit value: (high_byte << 8) | low_byte */
+    uint16_t received_crc = (uint16_t)((uint16_t)frame[frame_len - 1U] << 8U) |
+                            (uint16_t)frame[frame_len - 2U];
+    uint16_t calculated_crc = CalcCRC16(frame, (uint16_t)(frame_len - 2U));
+    if (received_crc != calculated_crc) {
+        return false;
+    }
+
+    *func_code = frame[1];
+    return true;
+}
+
+static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count)
+{
+    modbus_tx_buffer[0] = MODBUS_SLAVE_ADDR;
+    modbus_tx_buffer[1] = MODBUS_FUNC_READ_HOLDING_REGS;
+    modbus_tx_buffer[2] = (uint8_t)(reg_count * 2U);
+
+    for (uint16_t i = 0U; i < reg_count; i++) {
+        uint16_t reg = 0U;
+        (void)Modbus_ReadHoldingRegister((uint16_t)(start_addr + i), &reg);
+        modbus_tx_buffer[3U + (i * 2U)] = (uint8_t)((reg >> 8U) & 0xFFU);
+        modbus_tx_buffer[4U + (i * 2U)] = (uint8_t)(reg & 0xFFU);
+    }
+
+    uint16_t resp_data_len = (uint16_t)(3U + (reg_count * 2U));
+    uint16_t resp_crc = CalcCRC16(modbus_tx_buffer, resp_data_len);
+    modbus_tx_buffer[resp_data_len] = (uint8_t)(resp_crc & 0xFFU);
+    modbus_tx_buffer[resp_data_len + 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
+
+    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + 2U), BSP_UART_TX_TIMEOUT);
+}
+
+static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_len)
+{
+    /* Current implementation only supports fixed-length 0x03 request frame:
+     * addr(1) + func(1) + start(2) + count(2) + crc(2) = 8 bytes.
+     * This filters out self-echoed/invalid frames early. */
+    if (frame_len != MODBUS_RTU_READ_REQ_LEN) {
+        return;
+    }
+
+    uint16_t start_addr = (uint16_t)((uint16_t)frame[2] << 8U) | frame[3];
+    uint16_t reg_count  = (uint16_t)((uint16_t)frame[4] << 8U) | frame[5];
+
+    if ((reg_count == 0U) || (reg_count > MODBUS_MAX_READ_REGS)) {
+        Modbus_SendException(MODBUS_FUNC_READ_HOLDING_REGS, MODBUS_EX_ILLEGAL_DATA_VALUE);
+        return;
+    }
+
+    if (((uint32_t)start_addr + (uint32_t)reg_count) > (uint32_t)MODBUS_REG_MAX_COUNT) {
+        Modbus_SendException(MODBUS_FUNC_READ_HOLDING_REGS, MODBUS_EX_ILLEGAL_DATA_ADDRESS);
+        return;
+    }
+
+    Modbus_BuildReadResponse(start_addr, reg_count);
 }
 
 void Modbus_Init(void)
@@ -117,66 +194,22 @@ bool Modbus_RegisterOnChange(uint16_t addr, ModbusRegisterOnChange_t on_change)
 void Modbus_Process(void)
 {
     uint16_t rx_len = UART_Driver_Receive(modbus_rx_buffer, (uint16_t)sizeof(modbus_rx_buffer), 0U);
+    uint8_t func_code = 0U;
 
-    if (rx_len < MODBUS_RTU_READ_REQ_LEN) {
+    if (rx_len == 0U) {
         return;
     }
 
-    if (modbus_rx_buffer[0] != MODBUS_SLAVE_ADDR) {
+    if (!Modbus_ValidateFrame(modbus_rx_buffer, rx_len, &func_code)) {
         return;
     }
 
-    /* Modbus RTU CRC in frame order: low byte first, high byte second in the frame.
-     * But when recombining to 16-bit value: (high_byte << 8) | low_byte */
-    uint16_t received_crc = (uint16_t)((uint16_t)modbus_rx_buffer[rx_len - 1U] << 8U) | 
-                            (uint16_t)modbus_rx_buffer[rx_len - 2U];
-    uint16_t calculated_crc = CalcCRC16(modbus_rx_buffer, (uint16_t)(rx_len - 2U));
-    if (received_crc != calculated_crc) {
-        return;
+    switch (func_code) {
+    case MODBUS_FUNC_READ_HOLDING_REGS:
+        Modbus_HandleReadHoldingRegs(modbus_rx_buffer, rx_len);
+        break;
+    default:
+        Modbus_SendException(func_code, MODBUS_EX_ILLEGAL_FUNCTION);
+        break;
     }
-
-    uint8_t func_code = modbus_rx_buffer[1];
-    if (func_code != MODBUS_FUNC_READ_HOLDING_REGS) {
-        /* Illegal function */
-        Modbus_SendException(func_code, 0x01U);
-        return;
-    }
-
-    /* Current implementation only supports fixed-length 0x03 request frame:
-     * addr(1) + func(1) + start(2) + count(2) + crc(2) = 8 bytes.
-     * This filters out self-echoed/invalid frames early. */
-    if (rx_len != MODBUS_RTU_READ_REQ_LEN) {
-        return;
-    }
-
-    uint16_t start_addr = (uint16_t)((uint16_t)modbus_rx_buffer[2] << 8U) | modbus_rx_buffer[3];
-    uint16_t reg_count  = (uint16_t)((uint16_t)modbus_rx_buffer[4] << 8U) | modbus_rx_buffer[5];
-
-    if ((reg_count == 0U) || (reg_count > MODBUS_MAX_READ_REGS)) {
-        Modbus_SendException(func_code, 0x03U); /* Illegal data value */
-        return;
-    }
-
-    if (((uint32_t)start_addr + (uint32_t)reg_count) > (uint32_t)MODBUS_REG_MAX_COUNT) {
-        Modbus_SendException(func_code, 0x02U); /* Illegal data address */
-        return;
-    }
-
-    modbus_tx_buffer[0] = MODBUS_SLAVE_ADDR;
-    modbus_tx_buffer[1] = MODBUS_FUNC_READ_HOLDING_REGS;
-    modbus_tx_buffer[2] = (uint8_t)(reg_count * 2U);
-
-    for (uint16_t i = 0U; i < reg_count; i++) {
-        uint16_t reg = 0U;
-        (void)Modbus_ReadHoldingRegister((uint16_t)(start_addr + i), &reg);
-        modbus_tx_buffer[3U + (i * 2U)] = (uint8_t)((reg >> 8U) & 0xFFU);
-        modbus_tx_buffer[4U + (i * 2U)] = (uint8_t)(reg & 0xFFU);
-    }
-
-    uint16_t resp_data_len = (uint16_t)(3U + (reg_count * 2U));
-    uint16_t resp_crc = CalcCRC16(modbus_tx_buffer, resp_data_len);
-    modbus_tx_buffer[resp_data_len] = (uint8_t)(resp_crc & 0xFFU);
-    modbus_tx_buffer[resp_data_len + 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
-
-    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + 2U), BSP_UART_TX_TIMEOUT);
 }
