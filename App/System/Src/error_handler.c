@@ -2,7 +2,6 @@
 #include "error_handler.h"
 #include "led.h"
 #include "driver_uart.h"
-#include "cmsis_os.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include <stdio.h>
@@ -13,10 +12,13 @@
 static volatile ErrorType s_last_error = ERROR_NONE;
 static volatile uint32_t s_error_counter[ERROR_TYPE_COUNT];
 
-void ErrorHandler(const char* msg, ErrorLevel_t level) {
-    char buffer[128];
-    snprintf(buffer, sizeof(buffer), "[ERR] %s (Level: %d)\r\n", msg, (int)level);
-    BSP_UART_PrintString(buffer);
+static void Error_SendText(const char *text)
+{
+    if (text == NULL) {
+        return;
+    }
+
+    (void)UART_Driver_Send((const uint8_t *)text, (uint16_t)strlen(text), 20U);
 }
 
 void Error_Handler(void)
@@ -66,7 +68,7 @@ void ErrorLogRecord(ErrorType type, const char *file, int line)
                      (file != NULL) ? file : "unknown",
                      line);
     if (n > 0) {
-        (void)UART_Driver_Send((const uint8_t *)buf, (uint16_t)strlen(buf), 20U);
+        Error_SendText(buf);
     }
 }
 
@@ -75,7 +77,7 @@ void System_NotifyError(ErrorType type)
     char buf[32];
     int n = snprintf(buf, sizeof(buf), "SAFE MODE: %u\r\n", (unsigned)type);
     if (n > 0) {
-        (void)UART_Driver_Send((const uint8_t *)buf, (uint16_t)strlen(buf), 20U);
+        Error_SendText(buf);
     }
     BSP_LED_On();
 }

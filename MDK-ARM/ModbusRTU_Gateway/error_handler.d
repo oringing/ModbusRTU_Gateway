@@ -45,6 +45,5 @@ modbusrtu_gateway\error_handler.o: ../Middlewares/Third_Party/FreeRTOS/Source/in
 modbusrtu_gateway\error_handler.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h
 modbusrtu_gateway\error_handler.o: ../Bsp/Inc/uart.h
 modbusrtu_gateway\error_handler.o: ../Core/Inc/main.h
-modbusrtu_gateway\error_handler.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h
 modbusrtu_gateway\error_handler.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 modbusrtu_gateway\error_handler.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
