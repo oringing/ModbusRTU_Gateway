@@ -20,6 +20,9 @@ static osThreadId s_uart_task_handle = NULL;
 static osThreadId s_monitor_task_handle = NULL;
 static SystemStatus_t s_last_error = SYSTEM_OK;
 static char s_stack_log_line[80];
+static bool s_led_stack_warn_active = false;
+static bool s_uart_stack_warn_active = false;
+static bool s_monitor_stack_warn_active = false;
 
 /* Private function prototypes -----------------------------------------------*/
 static void System_Monitor_Log(const char *msg);
@@ -28,6 +31,7 @@ static bool System_ValidateConfig(void);
 static bool System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms);
 static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_handle);
 static uint32_t System_GetTaskStackWarnThreshold(const char *task_name);
+static bool *System_GetTaskStackWarnFlag(const char *task_name);
 static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id);
 static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id);
 
@@ -286,12 +290,18 @@ static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_
 {
     uint32_t watermark = 0U;
     uint32_t warn_th = 0U;
+    bool *warn_active = NULL;
 
     if (task_name == NULL) {
         return;
     }
 
+    warn_active = System_GetTaskStackWarnFlag(task_name);
+
     if (task_handle == NULL) {
+        if (warn_active != NULL) {
+            *warn_active = false;
+        }
         (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
                        "%s Stack Watermark: invalid handle\r\n", task_name);
         System_Monitor_Log(s_stack_log_line);
@@ -309,8 +319,21 @@ static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_
     System_Monitor_Log(s_stack_log_line);
 
     if ((warn_th > 0U) && (watermark <= warn_th)) {
+        if (warn_active != NULL && *warn_active) {
+            return;
+        }
+        if (warn_active != NULL) {
+            *warn_active = true;
+        }
         (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
                        "WARN: %s stack low watermark <= %u words\r\n",
+                       task_name,
+                       (unsigned int)warn_th);
+        System_Monitor_Log(s_stack_log_line);
+    } else if ((warn_active != NULL) && *warn_active) {
+        *warn_active = false;
+        (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
+                       "INFO: %s stack watermark recovered above %u words\r\n",
                        task_name,
                        (unsigned int)warn_th);
         System_Monitor_Log(s_stack_log_line);
@@ -332,6 +355,23 @@ static uint32_t System_GetTaskStackWarnThreshold(const char *task_name)
         return MONITOR_STACK_WM_WARN_WORDS;
     }
     return 0U;
+}
+
+static bool *System_GetTaskStackWarnFlag(const char *task_name)
+{
+    if (task_name == NULL) {
+        return NULL;
+    }
+    if (strcmp(task_name, "LED") == 0) {
+        return &s_led_stack_warn_active;
+    }
+    if (strcmp(task_name, "UART") == 0) {
+        return &s_uart_stack_warn_active;
+    }
+    if (strcmp(task_name, "Monitor") == 0) {
+        return &s_monitor_stack_warn_active;
+    }
+    return NULL;
 }
 
 static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id)

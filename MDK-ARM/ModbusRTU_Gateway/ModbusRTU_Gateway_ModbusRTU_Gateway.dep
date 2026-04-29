@@ -814,7 +814,7 @@ I (../Bsp/Inc/uart.h)(0x69F0B8F1)
 I (../Core/Inc/main.h)(0x69E47649)
 I (D:\Keil_v5\ARM\ARMCC\include\stdio.h)(0x5475F300)
 I (D:\Keil_v5\ARM\ARMCC\include\string.h)(0x5475F300)
-F (..\App\System\Src\system_ctrl.c)(0x69F1DA8C)(--c99 -c --cpu Cortex-M3 -g -O0 --apcs=interwork --split_sections -I../Core/Inc -I../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I../Drivers/STM32F1xx_HAL_Driver/Inc -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3 -I../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I../Drivers/CMSIS/Include -I../Bsp/Inc -I../App/Driver/Inc -I../App/Protocol/Inc -I../App/System/Inc -I../App/Task/Inc-I D:\STM32\myproject\ModbusRTU_Gateway\MDK-ARM\RTE-I D:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\1.0.5\Device\Include-I D:\Keil_v5\ARM\CMSIS\Include-D__UVISION_VERSION="514" -D_RTE_ -DSTM32F10X_MD -DUSE_HAL_DRIVER -DSTM32F103xB-o modbusrtu_gateway\system_ctrl.o --omf_browse modbusrtu_gateway\system_ctrl.crf --depend modbusrtu_gateway\system_ctrl.d)
+F (..\App\System\Src\system_ctrl.c)(0x69F22318)(--c99 -c --cpu Cortex-M3 -g -O0 --apcs=interwork --split_sections -I../Core/Inc -I../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I../Drivers/STM32F1xx_HAL_Driver/Inc -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3 -I../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I../Drivers/CMSIS/Include -I../Bsp/Inc -I../App/Driver/Inc -I../App/Protocol/Inc -I../App/System/Inc -I../App/Task/Inc-I D:\STM32\myproject\ModbusRTU_Gateway\MDK-ARM\RTE-I D:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\1.0.5\Device\Include-I D:\Keil_v5\ARM\CMSIS\Include-D__UVISION_VERSION="514" -D_RTE_ -DSTM32F10X_MD -DUSE_HAL_DRIVER -DSTM32F103xB-o modbusrtu_gateway\system_ctrl.o --omf_browse modbusrtu_gateway\system_ctrl.crf --depend modbusrtu_gateway\system_ctrl.d)
 I (../App/System/Inc/system_ctrl.h)(0x69F1DA8C)
 I (../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h)(0x69D8B184)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h)(0x69D8B184)
@@ -864,7 +864,7 @@ I (../Core/Inc/main.h)(0x69E47649)
 I (../App/Task/Inc/led_task.h)(0x69ECAFFD)
 I (../App/Task/Inc/uart_task.h)(0x69ECB944)
 I (../App/Task/Inc/monitor_task.h)(0x69ECB00F)
-I (../App/System/Inc/system_config.h)(0x69F1DA8C)
+I (../App/System/Inc/system_config.h)(0x69F22750)
 I (../App/Protocol/Inc/modbus.h)(0x69F213DA)
 I (../App/System/Inc/error_handler.h)(0x69F21FEF)
 F (..\App\Task\Src\key_task.c)(0x69E5E5EF)(--c99 -c --cpu Cortex-M3 -g -O0 --apcs=interwork --split_sections -I../Core/Inc -I../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I../Drivers/STM32F1xx_HAL_Driver/Inc -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3 -I../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I../Drivers/CMSIS/Include -I../Bsp/Inc -I../App/Driver/Inc -I../App/Protocol/Inc -I../App/System/Inc -I../App/Task/Inc-I D:\STM32\myproject\ModbusRTU_Gateway\MDK-ARM\RTE-I D:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\1.0.5\Device\Include-I D:\Keil_v5\ARM\CMSIS\Include-D__UVISION_VERSION="514" -D_RTE_ -DSTM32F10X_MD -DUSE_HAL_DRIVER -DSTM32F103xB-o modbusrtu_gateway\key_task.o --omf_browse modbusrtu_gateway\key_task.crf --depend modbusrtu_gateway\key_task.d)
@@ -930,7 +930,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/include/semphr.h)(0x69D8B184)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h)(0x69D8B184)
 I (../App/System/Inc/system_ctrl.h)(0x69F1DA8C)
 I (D:\Keil_v5\ARM\ARMCC\include\stdbool.h)(0x5475F300)
-I (../App/System/Inc/system_config.h)(0x69F1DA8C)
+I (../App/System/Inc/system_config.h)(0x69F22750)
 F (..\App\Task\Src\uart_task.c)(0x69F03828)(--c99 -c --cpu Cortex-M3 -g -O0 --apcs=interwork --split_sections -I../Core/Inc -I../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I../Drivers/STM32F1xx_HAL_Driver/Inc -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3 -I../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I../Drivers/CMSIS/Include -I../Bsp/Inc -I../App/Driver/Inc -I../App/Protocol/Inc -I../App/System/Inc -I../App/Task/Inc-I D:\STM32\myproject\ModbusRTU_Gateway\MDK-ARM\RTE-I D:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\1.0.5\Device\Include-I D:\Keil_v5\ARM\CMSIS\Include-D__UVISION_VERSION="514" -D_RTE_ -DSTM32F10X_MD -DUSE_HAL_DRIVER -DSTM32F103xB-o modbusrtu_gateway\uart_task.o --omf_browse modbusrtu_gateway\uart_task.crf --depend modbusrtu_gateway\uart_task.d)
 I (../App/Task/Inc/uart_task.h)(0x69ECB944)
 I (../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h)(0x69D8B184)
