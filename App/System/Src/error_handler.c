@@ -13,6 +13,12 @@
 static volatile ErrorType s_last_error = ERROR_NONE;
 static volatile uint32_t s_error_counter[ERROR_TYPE_COUNT];
 
+void ErrorHandler(const char* msg, ErrorLevel_t level) {
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "[ERR] %s (Level: %d)\r\n", msg, (int)level);
+    BSP_UART_PrintString(buffer);
+}
+
 void Error_Handler(void)
 {
     ErrorLogRecord(ERROR_HAL, __FILE__, __LINE__);

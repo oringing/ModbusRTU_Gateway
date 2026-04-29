@@ -53,6 +53,13 @@ uint16_t UART_Driver_Receive(uint8_t *buffer, uint16_t max_len, uint32_t timeout
     }
 
     uint32_t start = HAL_GetTick();
+    if (timeout == 0U) {
+        if (BSP_UART_IsFrameReady()) {
+            return BSP_UART_ReadFrame(buffer, max_len);
+        }
+        return 0U;
+    }
+
     while ((HAL_GetTick() - start) <= timeout) {
         if (BSP_UART_IsFrameReady()) {
             return BSP_UART_ReadFrame(buffer, max_len);

@@ -4,6 +4,7 @@
 
 #include "cmsis_os.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +19,21 @@ typedef enum {
     SYSTEM_ERR_TASK_CREATE_MONITOR
 } SystemStatus_t;
 
+// === 新增：任务 ID 枚举 ===
+typedef enum {
+    SYSTEM_TASK_UART,
+    SYSTEM_TASK_LED,
+    SYSTEM_TASK_MONITOR,
+    SYSTEM_TASK_MAX
+} SystemTaskId_t;
+
+// === 接口声明 ===
+bool System_SetTaskPriority(SystemTaskId_t task_id, osPriority priority);
+osPriority System_GetTaskPriority(SystemTaskId_t task_id);
+void System_ResetTaskPriorities(void);
+
+
+
 void System_Init(void);
 void System_Ctrl_Init(void);
 SystemStatus_t System_StartTasks(void);
@@ -29,6 +45,9 @@ void System_DestroyTask(osThreadId taskID);
 uint32_t System_GetStackWatermark(osThreadId taskID);
 void System_CheckStackWatermark(void);
 void System_Check_Stack_Watermark(void);
+bool System_SetTaskPriority(SystemTaskId_t task_id, osPriority priority);
+osPriority System_GetTaskPriority(SystemTaskId_t task_id);
+void System_ResetTaskPriorities(void);
 
 #ifdef __cplusplus
 }

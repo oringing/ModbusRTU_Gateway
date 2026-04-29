@@ -9,6 +9,13 @@ extern "C" {
 #endif
 
 typedef enum {
+    ERROR_INFO,
+    ERROR_WARNING,
+    ERROR_ERROR,
+    ERROR_CRITICAL
+} ErrorLevel_t;//测试用
+
+typedef enum {
     ERROR_NONE = 0,
     ERROR_HAL,
     ERROR_UART,
@@ -29,6 +36,9 @@ void System_HandleFault(ErrorType type);
 
 ErrorType Error_GetLastType(void);
 uint32_t Error_GetCount(ErrorType type);
+
+// 错误处理函数声明测试
+void ErrorHandler(const char* msg, ErrorLevel_t level);
 
 #ifdef __cplusplus
 }

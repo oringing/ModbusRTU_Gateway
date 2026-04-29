@@ -1,4 +1,5 @@
 //App/System/Src/system_ctrl.c
+
 #include "system_ctrl.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -26,6 +27,9 @@ static void System_StopTaskIfRunning(osThreadId *task_handle);
 static bool System_ValidateConfig(void);
 static bool System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms);
 static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_handle);
+static uint32_t System_GetTaskStackWarnThreshold(const char *task_name);
+static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id);
+static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id);
 
 /**
   * @brief  Initialize system control module
@@ -107,7 +111,7 @@ osThreadId System_CreateTask(const char *name,
                              osPriority priority,
                              uint32_t stackSize)
 {
-    if (taskFunc == NULL) {
+    if (name == NULL || taskFunc == NULL || stackSize == 0U || priority == osPriorityError) {
         return NULL;
     }
 
@@ -147,6 +151,31 @@ void System_CheckStackWatermark(void)
 void System_Check_Stack_Watermark(void)
 {
     System_CheckStackWatermark();
+}
+
+bool System_SetTaskPriority(SystemTaskId_t task_id, osPriority priority)
+{
+    osThreadId task_handle = System_GetTaskHandleById(task_id);
+    if (task_handle == NULL) {
+        return false;
+    }
+    return (osThreadSetPriority(task_handle, priority) == osOK);
+}
+
+osPriority System_GetTaskPriority(SystemTaskId_t task_id)
+{
+    osThreadId task_handle = System_GetTaskHandleById(task_id);
+    if (task_handle == NULL) {
+        return osPriorityError;
+    }
+    return osThreadGetPriority(task_handle);
+}
+
+void System_ResetTaskPriorities(void)
+{
+    (void)System_SetTaskPriority(SYSTEM_TASK_LED, System_GetDefaultPriorityById(SYSTEM_TASK_LED));
+    (void)System_SetTaskPriority(SYSTEM_TASK_UART, System_GetDefaultPriorityById(SYSTEM_TASK_UART));
+    (void)System_SetTaskPriority(SYSTEM_TASK_MONITOR, System_GetDefaultPriorityById(SYSTEM_TASK_MONITOR));
 }
 
 /**
@@ -255,6 +284,9 @@ static bool System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms)
 
 static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_handle)
 {
+    uint32_t watermark = 0U;
+    uint32_t warn_th = 0U;
+
     if (task_name == NULL) {
         return;
     }
@@ -266,10 +298,66 @@ static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_
         return;
     }
 
+    watermark = (uint32_t)uxTaskGetStackHighWaterMark(task_handle);
+    warn_th = System_GetTaskStackWarnThreshold(task_name);
+
     /* Use %u for uint32_t on most embedded ARM GCC targets to avoid format warnings */
     (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
                    "%s Stack Watermark: %u words\r\n",
                    task_name,
-                   (unsigned int)uxTaskGetStackHighWaterMark(task_handle));
+                   (unsigned int)watermark);
     System_Monitor_Log(s_stack_log_line);
+
+    if ((warn_th > 0U) && (watermark <= warn_th)) {
+        (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
+                       "WARN: %s stack low watermark <= %u words\r\n",
+                       task_name,
+                       (unsigned int)warn_th);
+        System_Monitor_Log(s_stack_log_line);
+    }
+}
+
+static uint32_t System_GetTaskStackWarnThreshold(const char *task_name)
+{
+    if (task_name == NULL) {
+        return 0U;
+    }
+    if (strcmp(task_name, "LED") == 0) {
+        return LED_STACK_WM_WARN_WORDS;
+    }
+    if (strcmp(task_name, "UART") == 0) {
+        return UART_STACK_WM_WARN_WORDS;
+    }
+    if (strcmp(task_name, "Monitor") == 0) {
+        return MONITOR_STACK_WM_WARN_WORDS;
+    }
+    return 0U;
+}
+
+static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id)
+{
+    switch (task_id) {
+        case SYSTEM_TASK_LED:
+            return s_led_task_handle;
+        case SYSTEM_TASK_UART:
+            return s_uart_task_handle;
+        case SYSTEM_TASK_MONITOR:
+            return s_monitor_task_handle;
+        default:
+            return NULL;
+    }
+}
+
+static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id)
+{
+    switch (task_id) {
+        case SYSTEM_TASK_LED:
+            return LED_TASK_PRIORITY;
+        case SYSTEM_TASK_UART:
+            return UART_TASK_PRIORITY;
+        case SYSTEM_TASK_MONITOR:
+            return MONITOR_TASK_PRIORITY;
+        default:
+            return osPriorityError;
+    }
 }
