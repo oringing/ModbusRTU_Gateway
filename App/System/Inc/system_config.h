@@ -19,7 +19,7 @@
 #define STACK_WATERMARK_LOG_DELAY        100U
 
 /* Modbus 联调时默认为0U，禁止在 USART1 上发送 ASCII 文本日志，避免污染总线，当为 1U 时允许发送 */
-#define SYSTEM_UART_TEXT_LOG_ENABLE      0U
+#define SYSTEM_UART_TEXT_LOG_ENABLE      1U
 
 /* 栈水位预警阈值（单位：words，低于该值触发告警） */
 #define LED_STACK_WM_WARN_WORDS          24U

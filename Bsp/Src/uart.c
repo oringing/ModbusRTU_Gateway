@@ -29,21 +29,43 @@ static uint32_t s_last_post_frame_restart_log_tick = 0U;
 
 
 
-static bool BSP_UART_StartReceiveByte(void)
+static HAL_StatusTypeDef BSP_UART_StartReceiveByteRaw(void)
 {
-    return (HAL_UART_Receive_IT(&huart1, &s_active_rx_buffer[rx_count], 1U) == HAL_OK);
+    return HAL_UART_Receive_IT(&huart1, &s_active_rx_buffer[rx_count], 1U);
 }
 
-static bool BSP_UART_RestartReceiveFromBufferHead(void)
+static bool BSP_UART_StartReceiveByte(void)
+{
+    return (BSP_UART_StartReceiveByteRaw() == HAL_OK);
+}
+
+static bool BSP_UART_RestartReceiveFromBufferHead(HAL_StatusTypeDef *restart_status)
 {
     HAL_StatusTypeDef st = HAL_UART_AbortReceive(&huart1);
     if ((st != HAL_OK) && (st != HAL_BUSY)) {
+        if (restart_status != NULL) {
+            *restart_status = st;
+        }
         return false;
     }
 
     /* Caller has already swapped buffers and cleared the frame state.
      * This helper should only re-arm RX on the new active buffer head. */
-    return BSP_UART_StartReceiveByte();
+    st = BSP_UART_StartReceiveByteRaw();
+    if (restart_status != NULL) {
+        *restart_status = st;
+    }
+    return (st == HAL_OK);
+}
+
+static bool BSP_UART_ResetStateAndRestartReceive(HAL_StatusTypeDef *restart_status)
+{
+    __disable_irq();
+    rx_count = 0U;
+    frame_ready = false;
+    __enable_irq();
+
+    return BSP_UART_RestartReceiveFromBufferHead(restart_status);
 }
 
 static void BSP_UART_RequestRecoveryFromISR(void)
@@ -106,6 +128,8 @@ static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef *huart)
 
 static void BSP_UART_RecoveryIfNeeded(void)
 {
+    HAL_StatusTypeDef restart_status = HAL_ERROR;
+
     if (!s_rx_need_recovery) {
         return;
     }
@@ -116,17 +140,12 @@ static void BSP_UART_RecoveryIfNeeded(void)
     }
     s_last_recover_try_tick = HAL_GetTick();
 
-    __disable_irq();
     s_rx_need_recovery = false;
-    rx_count = 0U;
-    frame_ready = false;
-    __enable_irq();
 
-    HAL_StatusTypeDef st = HAL_UART_Receive_IT(&huart1, &s_active_rx_buffer[rx_count], 1U);
-    if (st != HAL_OK) {
+    if (!BSP_UART_ResetStateAndRestartReceive(&restart_status)) {
         /* HAL_BUSY is expected transiently when RX state has not fully released. */
         s_rx_need_recovery = true;
-        if (st != HAL_BUSY) {
+        if (restart_status != HAL_BUSY) {
             s_uart_error_count++;
             if ((HAL_GetTick() - s_last_recover_fail_log_tick) >= 1000U) {
                 s_last_recover_fail_log_tick = HAL_GetTick();
@@ -355,7 +374,7 @@ uint16_t BSP_UART_ReadFrame(uint8_t *buffer, uint16_t max_len)
      * After buffer swap we must explicitly abort and restart RX from the new buffer head,
      * otherwise the first byte of the next request lands in the old buffer and shifts frame data. */
     if (need_restart_rx) {
-        bool restarted = BSP_UART_RestartReceiveFromBufferHead();
+        bool restarted = BSP_UART_RestartReceiveFromBufferHead(NULL);
         if (!restarted) {
             s_rx_need_recovery = true;
             if ((HAL_GetTick() - s_last_post_frame_restart_log_tick) >= 1000U) {
