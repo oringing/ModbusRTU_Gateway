@@ -18,7 +18,11 @@ static void Error_SendText(const char *text)
         return;
     }
 
+#if (SYSTEM_UART_TEXT_LOG_ENABLE == 1U)
     (void)UART_Driver_Send((const uint8_t *)text, (uint16_t)strlen(text), 20U);
+#else
+    (void)text;
+#endif
 }
 
 void Error_Handler(void)

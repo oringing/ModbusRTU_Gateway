@@ -41,8 +41,8 @@ static bool BSP_UART_RestartReceiveFromBufferHead(void)
         return false;
     }
 
-    rx_count = 0U;
-    frame_ready = false;
+    /* Caller has already swapped buffers and cleared the frame state.
+     * This helper should only re-arm RX on the new active buffer head. */
     return BSP_UART_StartReceiveByte();
 }
 

@@ -192,7 +192,11 @@ static void System_Monitor_Log(const char *msg)
     if (msg == NULL) {
         return;
     }
+#if (SYSTEM_UART_TEXT_LOG_ENABLE == 1U)
     (void)UART_Driver_Send((const uint8_t *)msg, (uint16_t)strlen(msg), 20U);
+#else
+    (void)msg;
+#endif
 }
 
 static void System_StopTaskIfRunning(osThreadId *task_handle)

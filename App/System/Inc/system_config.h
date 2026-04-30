@@ -15,8 +15,11 @@
 #define MONITOR_TASK_PRIORITY            osPriorityBelowNormal
 
 /* 系统监控相关 */
-#define STACK_WATERMARK_CHECK_INTERVAL   300U // 300 * 100ms = 30s
+#define STACK_WATERMARK_CHECK_INTERVAL   50U // 50 * 100ms = 5s
 #define STACK_WATERMARK_LOG_DELAY        100U
+
+/* Modbus 联调时默认为0U，禁止在 USART1 上发送 ASCII 文本日志，避免污染总线，当为 1U 时允许发送 */
+#define SYSTEM_UART_TEXT_LOG_ENABLE      0U
 
 /* 栈水位预警阈值（单位：words，低于该值触发告警） */
 #define LED_STACK_WM_WARN_WORDS          24U
