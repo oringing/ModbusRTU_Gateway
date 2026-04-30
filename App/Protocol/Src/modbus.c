@@ -2,6 +2,8 @@
 #include "uart.h"
 #include "driver_uart.h"
 #include "modbus.h"
+#include "cmsis_os.h"
+#include "task.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -9,6 +11,7 @@
 
 static uint8_t modbus_rx_buffer[MODBUS_BUFFER_SIZE];
 static uint8_t modbus_tx_buffer[MODBUS_RESPONSE_BUFFER_SIZE];
+static osMutexId s_modbus_reg_mutex = NULL;
 typedef struct {
     uint16_t value;
     uint16_t default_value;
@@ -24,6 +27,9 @@ static const uint16_t s_default_regs[] = {
 static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8_t *func_code);
 static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_len);
 static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count);
+static void Modbus_EnsureRegisterMutex(void);
+static bool Modbus_LockRegisters(void);
+static void Modbus_UnlockRegisters(void);
 
 static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value)
 {
@@ -31,6 +37,41 @@ static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value)
     (void)new_value;
 }
 
+static void Modbus_EnsureRegisterMutex(void)
+{
+    if (s_modbus_reg_mutex != NULL) {
+        return;
+    }
+
+    osMutexDef(ModbusRegisterMutex);
+    s_modbus_reg_mutex = osMutexCreate(osMutex(ModbusRegisterMutex));
+}
+
+static bool Modbus_LockRegisters(void)
+{
+    Modbus_EnsureRegisterMutex();
+
+    /* Before scheduler start there is no concurrent task access, so direct access is safe. */
+    if (s_modbus_reg_mutex == NULL) {
+        return true;
+    }
+
+    return (osMutexWait(s_modbus_reg_mutex, osWaitForever) == osOK);
+}
+
+static void Modbus_UnlockRegisters(void)
+{
+    if (s_modbus_reg_mutex != NULL) {
+        osMutexRelease(s_modbus_reg_mutex);
+    }
+}
+
+/**
+ * @brief Calculate standard Modbus RTU CRC16.
+ *
+ * The frame stores CRC in low-byte-first order. This helper returns the
+ * combined 16-bit value so callers can split it when serializing a response.
+ */
 static uint16_t CalcCRC16(const uint8_t *data, uint16_t len)
 {
     uint16_t crc = 0xFFFFU;
@@ -137,6 +178,11 @@ static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_le
 
 void Modbus_Init(void)
 {
+    /* Create the register mutex during startup so later task access does not
+     * race on first-time initialization. If creation fails here, runtime calls
+     * will retry through Modbus_LockRegisters(). */
+    Modbus_EnsureRegisterMutex();
+
     for (uint16_t i = 0U; i < MODBUS_REG_MAX_COUNT; i++) {
         holding_regs[i].value = 0U;
         holding_regs[i].default_value = 0U;
@@ -159,25 +205,41 @@ bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t *value)
     if (value == NULL || addr >= MODBUS_REG_MAX_COUNT) {
         return false;
     }
+
+    if (!Modbus_LockRegisters()) {
+        return false;
+    }
+
     *value = holding_regs[addr].value;
+    Modbus_UnlockRegisters();
     return true;
 }
 
 bool Modbus_WriteHoldingRegister(uint16_t addr, uint16_t value)
 {
     uint16_t old_value = 0U;
+    ModbusRegisterOnChange_t on_change = NULL;
 
     if (addr >= MODBUS_REG_MAX_COUNT) {
         return false;
     }
+
+    if (!Modbus_LockRegisters()) {
+        return false;
+    }
+
     if (holding_regs[addr].read_only) {
+        Modbus_UnlockRegisters();
         return false;
     }
 
     old_value = holding_regs[addr].value;
     holding_regs[addr].value = value;
-    if (holding_regs[addr].on_change != NULL && old_value != value) {
-        holding_regs[addr].on_change(old_value, value);
+    on_change = holding_regs[addr].on_change;
+    Modbus_UnlockRegisters();
+
+    if (on_change != NULL && old_value != value) {
+        on_change(old_value, value);
     }
     return true;
 }
@@ -187,7 +249,13 @@ bool Modbus_RegisterOnChange(uint16_t addr, ModbusRegisterOnChange_t on_change)
     if (addr >= MODBUS_REG_MAX_COUNT) {
         return false;
     }
+
+    if (!Modbus_LockRegisters()) {
+        return false;
+    }
+
     holding_regs[addr].on_change = on_change;
+    Modbus_UnlockRegisters();
     return true;
 }
 
