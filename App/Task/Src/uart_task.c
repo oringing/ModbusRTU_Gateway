@@ -20,7 +20,12 @@ void Start_UART_Task(void const * argument)
     while (s_uart_task_stop == 0U)
     {
         Modbus_Process();
-        osDelay(1);
+        /* Do not sleep if a frame is already pending, otherwise we add an
+         * avoidable polling window after IDLE and make back-to-back requests
+         * more likely to wait an extra 1 ms before being consumed. */
+        if (!BSP_UART_IsFrameReady()) {
+            osDelay(1U);
+        }
     }
     osThreadTerminate(NULL);
 }
