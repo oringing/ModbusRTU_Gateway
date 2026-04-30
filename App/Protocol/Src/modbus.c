@@ -50,10 +50,10 @@ static void Modbus_EnsureRegisterMutex(void)
 static bool Modbus_LockRegisters(void)
 {
     Modbus_EnsureRegisterMutex();
-
-    /* Before scheduler start there is no concurrent task access, so direct access is safe. */
+    
+    // 即使mutex创建失败也返回false
     if (s_modbus_reg_mutex == NULL) {
-        return true;
+        return false;
     }
 
     return (osMutexWait(s_modbus_reg_mutex, osWaitForever) == osOK);
@@ -132,16 +132,22 @@ static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8
 
 static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count)
 {
+    if (!Modbus_LockRegisters()) {
+        Modbus_SendException(MODBUS_FUNC_READ_HOLDING_REGS, MODBUS_EX_ILLEGAL_DATA_VALUE);
+        return;
+    }
+
     modbus_tx_buffer[0] = MODBUS_SLAVE_ADDR;
     modbus_tx_buffer[1] = MODBUS_FUNC_READ_HOLDING_REGS;
     modbus_tx_buffer[2] = (uint8_t)(reg_count * 2U);
 
     for (uint16_t i = 0U; i < reg_count; i++) {
-        uint16_t reg = 0U;
-        (void)Modbus_ReadHoldingRegister((uint16_t)(start_addr + i), &reg);
+        uint16_t reg = holding_regs[start_addr + i].value;
         modbus_tx_buffer[3U + (i * 2U)] = (uint8_t)((reg >> 8U) & 0xFFU);
         modbus_tx_buffer[4U + (i * 2U)] = (uint8_t)(reg & 0xFFU);
     }
+
+    Modbus_UnlockRegisters();
 
     uint16_t resp_data_len = (uint16_t)(3U + (reg_count * 2U));
     uint16_t resp_crc = CalcCRC16(modbus_tx_buffer, resp_data_len);

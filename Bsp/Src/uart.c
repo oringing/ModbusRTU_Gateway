@@ -290,8 +290,10 @@ void BSP_UART_IRQHandler(void)
     }
 
     /* Light isolation around HAL IRQ path to avoid recursive storm. */
+    __disable_irq();  // 关中断确保原子性
     if (s_uart_irq_busy != 0U) {
         s_uart_irq_reentry_count++;
+        __enable_irq();
         if (s_uart_irq_reentry_count >= UART_IRQ_REENTRY_RECOVER_TH) {
             s_uart_error_count++;
             __HAL_UART_CLEAR_PEFLAG(&huart1);
@@ -300,8 +302,9 @@ void BSP_UART_IRQHandler(void)
         }
         return;
     }
-
     s_uart_irq_busy = 1U;
+    __enable_irq();
+
     HAL_UART_IRQHandler(&huart1);
     s_uart_irq_busy = 0U;
 
