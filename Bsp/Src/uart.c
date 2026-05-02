@@ -10,6 +10,7 @@ static uint8_t s_rx_buffer_b[BSP_UART_RX_BUF_SIZE];
 static uint8_t *s_active_rx_buffer = s_rx_buffer_a;
 static uint8_t *s_ready_rx_buffer = s_rx_buffer_b;
 static volatile uint16_t rx_count = 0;
+static volatile uint16_t s_ready_frame_len = 0U;
 static volatile bool frame_ready = false;
 static volatile bool s_rx_need_recovery = false;
 static volatile uint32_t s_uart_error_count = 0U;
@@ -62,6 +63,7 @@ static bool BSP_UART_ResetStateAndRestartReceive(HAL_StatusTypeDef *restart_stat
 {
     __disable_irq();
     rx_count = 0U;
+    s_ready_frame_len = 0U;
     frame_ready = false;
     __enable_irq();
 
@@ -71,6 +73,43 @@ static bool BSP_UART_ResetStateAndRestartReceive(HAL_StatusTypeDef *restart_stat
 static void BSP_UART_RequestRecoveryFromISR(void)
 {
     s_rx_need_recovery = true;
+}
+
+static void BSP_UART_FinalizeFrameFromISR(void)
+{
+    HAL_StatusTypeDef restart_status = HAL_ERROR;
+    uint8_t *sealed_buffer = NULL;
+    uint8_t *new_active_buffer = NULL;
+
+    if (rx_count == 0U) {
+        return;
+    }
+
+    /* Only one ready slot exists. If the previous frame is still pending when
+     * another IDLE arrives, drop the current capture and recover the RX chain
+     * rather than mixing completed frames. */
+    if (frame_ready) {
+        s_uart_rx_overflow_count++;
+        BSP_UART_RequestRecoveryFromISR();
+        return;
+    }
+
+    sealed_buffer = s_active_rx_buffer;
+    new_active_buffer = s_ready_rx_buffer;
+    s_active_rx_buffer = new_active_buffer;
+    s_ready_rx_buffer = sealed_buffer;
+    s_ready_frame_len = rx_count;
+    rx_count = 0U;
+    frame_ready = true;
+
+    if (!BSP_UART_RestartReceiveFromBufferHead(&restart_status)) {
+        s_rx_need_recovery = true;
+        if ((restart_status != HAL_BUSY) &&
+            ((HAL_GetTick() - s_last_post_frame_restart_log_tick) >= 1000U)) {
+            s_last_post_frame_restart_log_tick = HAL_GetTick();
+            ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
+        }
+    }
 }
 
 static bool BSP_UART_ShouldThrottleLog(void)
@@ -85,23 +124,34 @@ static bool BSP_UART_ShouldThrottleLog(void)
 
 static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef *huart)
 {
+    uint32_t error_code = 0U;
     bool has_error = false;
     bool need_immediate_recover = false;
 
-    if (__HAL_UART_GET_FLAG(huart, UART_FLAG_ORE) != RESET) {
+    if (huart == NULL) {
+        return;
+    }
+
+    error_code = huart->ErrorCode;
+    if (error_code == HAL_UART_ERROR_NONE) {
+        s_uart_error_streak = 0U;
+        return;
+    }
+
+    if ((error_code & HAL_UART_ERROR_ORE) != 0U) {
         s_uart_ore_count++;
         has_error = true;
         need_immediate_recover = true;
     }
-    if (__HAL_UART_GET_FLAG(huart, UART_FLAG_FE) != RESET) {
+    if ((error_code & HAL_UART_ERROR_FE) != 0U) {
         s_uart_fe_count++;
         has_error = true;
     }
-    if (__HAL_UART_GET_FLAG(huart, UART_FLAG_NE) != RESET) {
+    if ((error_code & HAL_UART_ERROR_NE) != 0U) {
         s_uart_ne_count++;
         has_error = true;
     }
-    if (__HAL_UART_GET_FLAG(huart, UART_FLAG_PE) != RESET) {
+    if ((error_code & HAL_UART_ERROR_PE) != 0U) {
         s_uart_pe_count++;
         has_error = true;
     }
@@ -114,7 +164,7 @@ static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef *huart)
     s_uart_error_count++;
     s_uart_error_streak++;
 
-    /* Clear PE/FE/NE/ORE chain on F1 series. */
+    /* Clear PE/FE/NE/ORE chain on F1 series before re-arming RX. */
     __HAL_UART_CLEAR_PEFLAG(huart);
 
     if (need_immediate_recover || (s_uart_error_streak >= UART_ERROR_STREAK_RECOVER_TH)) {
@@ -131,6 +181,13 @@ static void BSP_UART_RecoveryIfNeeded(void)
     HAL_StatusTypeDef restart_status = HAL_ERROR;
 
     if (!s_rx_need_recovery) {
+        return;
+    }
+
+    /* Keep the sealed frame available to upper layers first. If recovery was
+     * requested after that frame was published, defer the reset until the task
+     * has drained the ready buffer. */
+    if (frame_ready) {
         return;
     }
 
@@ -201,6 +258,7 @@ void BSP_UART_Init(void)
     
     // 5. 启动首次接收（触发后续的中断链）
     rx_count = 0U;
+    s_ready_frame_len = 0U;
     frame_ready = false;
     s_rx_need_recovery = false;
     if (!BSP_UART_StartReceiveByte())
@@ -239,16 +297,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART1) 
     {
-        /* A complete frame is pending for upper layer consumption.
-         * Drop newly arrived bytes here to avoid mixing two frames
-         * into the same active buffer before BSP_UART_ReadFrame() swaps buffers. */
-        if (frame_ready) {
-            if (HAL_UART_Receive_IT(huart, &s_active_rx_buffer[rx_count], 1U) != HAL_OK) {
-                BSP_UART_RequestRecoveryFromISR();
-            }
-            return;
-        }
-
         /* Drop local TX echo bytes to avoid "request/echo" alternating frames. */
         if (s_uart_tx_in_progress != 0U) {
             if (HAL_UART_Receive_IT(huart, &s_active_rx_buffer[rx_count], 1U) != HAL_OK) {
@@ -298,17 +346,8 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 // 注意：HAL 库的空闲中断通常需要用户在 IT_Handler 中清除标志位并调用此逻辑
 void BSP_UART_IRQHandler(void)
 {
-    if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE) != RESET)
-    {
-        __HAL_UART_CLEAR_IDLEFLAG(&huart1);
-
-        if (rx_count > 0)
-        {
-            frame_ready = true;
-        }
-    }
-
-    /* Light isolation around HAL IRQ path to avoid recursive storm. */
+    /* Guard the whole USART1 path, not just the HAL call, so IDLE sealing and
+     * HAL RX/error handling always run as one consistent critical section. */
     __disable_irq();  // 关中断确保原子性
     if (s_uart_irq_busy != 0U) {
         s_uart_irq_reentry_count++;
@@ -325,10 +364,17 @@ void BSP_UART_IRQHandler(void)
     __enable_irq();
 
     HAL_UART_IRQHandler(&huart1);
-    s_uart_irq_busy = 0U;
 
-    /* Classify possible line errors and trigger recover policy by severity. */
-    BSP_UART_ClassifyAndHandleErrorsFromISR(&huart1);
+    /* Let HAL drain the last RXNE byte first, then seal the frame on IDLE and
+     * immediately re-arm reception on the other buffer to shrink the gap
+     * between two back-to-back master requests. */
+    if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE) != RESET)
+    {
+        __HAL_UART_CLEAR_IDLEFLAG(&huart1);
+        BSP_UART_FinalizeFrameFromISR();
+    }
+
+    s_uart_irq_busy = 0U;
 }
 
 
@@ -342,9 +388,6 @@ uint16_t BSP_UART_ReadFrame(uint8_t *buffer, uint16_t max_len)
 {
     uint16_t snapshot_len = 0U;
     uint16_t copy_len = 0U;
-    uint8_t *ready_buffer = NULL;
-    uint8_t *old_active = NULL;
-    bool need_restart_rx = false;
 
     BSP_UART_RecoveryIfNeeded();
 
@@ -354,34 +397,15 @@ uint16_t BSP_UART_ReadFrame(uint8_t *buffer, uint16_t max_len)
 
     __disable_irq();
     if (frame_ready) {
-        snapshot_len = rx_count;
-        ready_buffer = s_active_rx_buffer;
-        old_active = s_ready_rx_buffer;
-        s_active_rx_buffer = old_active;
-        s_ready_rx_buffer = ready_buffer;
-        rx_count = 0U;
+        snapshot_len = s_ready_frame_len;
+        s_ready_frame_len = 0U;
         frame_ready = false;
-        need_restart_rx = true;
     }
     __enable_irq();
 
     if (snapshot_len > 0U) {
         copy_len = (snapshot_len < max_len) ? snapshot_len : max_len;
         memcpy(buffer, s_ready_rx_buffer, copy_len);
-    }
-
-    /* A one-byte receive is still armed on the old active buffer tail when IDLE arrives.
-     * After buffer swap we must explicitly abort and restart RX from the new buffer head,
-     * otherwise the first byte of the next request lands in the old buffer and shifts frame data. */
-    if (need_restart_rx) {
-        bool restarted = BSP_UART_RestartReceiveFromBufferHead(NULL);
-        if (!restarted) {
-            s_rx_need_recovery = true;
-            if ((HAL_GetTick() - s_last_post_frame_restart_log_tick) >= 1000U) {
-                s_last_post_frame_restart_log_tick = HAL_GetTick();
-                ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
-            }
-        }
     }
 
     return copy_len;
