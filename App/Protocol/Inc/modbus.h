@@ -20,11 +20,26 @@ extern "C" {
 #define MODBUS_BUFFER_SIZE               256
 #define MODBUS_RESPONSE_BUFFER_SIZE      256
 #define MODBUS_EXCEPTION_RESPONSE_SIZE   5
+#define MODBUS_TX_TIMEOUT_MS             5U
 #define MODBUS_POLL_INTERVAL             10
 
 #define MODBUS_EX_ILLEGAL_FUNCTION       0x01U
 #define MODBUS_EX_ILLEGAL_DATA_ADDRESS   0x02U
 #define MODBUS_EX_ILLEGAL_DATA_VALUE     0x03U
+
+/* Frozen holding-register map for the first 0x06 implementation round.
+ * External devices are not connected yet, so sensor/status slots still expose
+ * demo defaults. Only the servo target register is writable for now. */
+#define MODBUS_REG_ADDR_SENSOR_TEMP      0U
+#define MODBUS_REG_ADDR_SENSOR_HUMIDITY  1U
+#define MODBUS_REG_ADDR_DEVICE_STATUS    2U
+#define MODBUS_REG_ADDR_SYSTEM_FLAGS     3U
+#define MODBUS_REG_ADDR_SERVO_TARGET     4U
+#define MODBUS_REG_ADDR_RESERVED_BEGIN   5U
+#define MODBUS_REG_ADDR_RESERVED_END     9U
+
+#define MODBUS_SERVO_TARGET_MIN          0U
+#define MODBUS_SERVO_TARGET_MAX          180U
 
 typedef void (*ModbusRegisterOnChange_t)(uint16_t old_value, uint16_t new_value);
 
