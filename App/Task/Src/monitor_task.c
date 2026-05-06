@@ -33,6 +33,9 @@ void Start_Monitor_Task(void const * argument)
             check_counter = 0;
         }
         
+        // 喂狗操作 - 确保系统正常运行
+        System_IWDG_Feed();
+        
         osDelay(STACK_WATERMARK_LOG_DELAY);
     }
     osThreadTerminate(NULL);

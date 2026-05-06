@@ -18,6 +18,11 @@
 #define STACK_WATERMARK_CHECK_INTERVAL   50U // 50 * 100ms = 5s
 #define STACK_WATERMARK_LOG_DELAY        100U
 
+/* 看门狗配置 */
+#define SYSTEM_USE_IWDG                  1U      /* 是否启用硬件看门狗 */
+#define IWDG_RELOAD_VALUE                4095U   /* 看门狗重载值，配合LSI约40KHz，约2秒超时 */
+#define IWDG_WINDOW_VALUE                4095U   /* 窗口值，这里设为最大值，禁用窗口功能 */
+
 /* Modbus 联调时默认为0U，禁止在 USART1 上发送 ASCII 文本日志，避免污染总线，当为 1U 时允许发送 */
 #define SYSTEM_UART_TEXT_LOG_ENABLE      0U
 

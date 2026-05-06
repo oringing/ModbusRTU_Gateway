@@ -2,6 +2,9 @@
 #include "uart.h"
 #include "error_handler.h"
 #include <string.h>
+// 添加必要的头文件
+#include "cmsis_os.h"
+#include "task.h"
 
 // 内部私有变量
 static UART_HandleTypeDef huart1; 
@@ -283,8 +286,6 @@ bool BSP_UART_Send(const uint8_t *data, uint16_t len, uint32_t timeout)
     return status;
 }
 
-
-
 void BSP_UART_PrintString(const char *str)
 {
     if (str != NULL) {
@@ -391,7 +392,8 @@ uint16_t BSP_UART_ReadFrame(uint8_t *buffer, uint16_t max_len)
 
     BSP_UART_RecoveryIfNeeded();
 
-    if (buffer == NULL || max_len == 0U) {
+    // 增强参数验证
+    if (buffer == NULL || max_len == 0U || max_len > BSP_UART_RX_BUF_SIZE) {
         return 0U;
     }
 
@@ -404,7 +406,12 @@ uint16_t BSP_UART_ReadFrame(uint8_t *buffer, uint16_t max_len)
     __enable_irq();
 
     if (snapshot_len > 0U) {
+        // 确保不会超出实际可用数据和目标缓冲区大小
         copy_len = (snapshot_len < max_len) ? snapshot_len : max_len;
+        // 进一步检查防止内存越界
+        if (copy_len > BSP_UART_RX_BUF_SIZE) {
+            copy_len = BSP_UART_RX_BUF_SIZE;
+        }
         memcpy(buffer, s_ready_rx_buffer, copy_len);
     }
 

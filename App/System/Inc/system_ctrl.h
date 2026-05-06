@@ -32,7 +32,8 @@ bool System_SetTaskPriority(SystemTaskId_t task_id, osPriority priority);
 osPriority System_GetTaskPriority(SystemTaskId_t task_id);
 void System_ResetTaskPriorities(void);
 
-
+// 新增：看门狗喂狗函数
+void System_IWDG_Feed(void);
 
 void System_Init(void);
 void System_Ctrl_Init(void);
