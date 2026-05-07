@@ -1,4 +1,5 @@
 docs/
+App\Test
 
 MDK-ARM/ModbusRTU_Gateway/
 MDK-ARM/*.uvguix.*
