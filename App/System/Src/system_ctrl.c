@@ -16,6 +16,10 @@
 #include "stm32f1xx_hal_iwdg.h"
 
 /* Private variables ---------------------------------------------------------*/
+#if (SYSTEM_USE_IWDG == 1U)
+static IWDG_HandleTypeDef hiwdg;  // 全局IWDG句柄
+#endif
+
 static osThreadId s_led_task_handle = NULL;
 static osThreadId s_uart_task_handle = NULL;
 static osThreadId s_monitor_task_handle = NULL;
@@ -74,6 +78,7 @@ SystemStatus_t System_StartTasks(void)
             return s_last_error;
         }
     }
+    
     if (s_uart_task_handle == NULL) {
         s_uart_task_handle = System_CreateTask("UART_Task",
                                                Start_UART_Task,
@@ -86,6 +91,7 @@ SystemStatus_t System_StartTasks(void)
             return s_last_error;
         }
     }
+    
     if (s_monitor_task_handle == NULL) {
         s_monitor_task_handle = System_CreateTask("Monitor_Task",
                                                   Start_Monitor_Task,
@@ -98,6 +104,7 @@ SystemStatus_t System_StartTasks(void)
             return s_last_error;
         }
     }
+    
     s_last_error = SYSTEM_OK;
     return s_last_error;
 }
@@ -419,13 +426,11 @@ static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id)
 static void System_IWDG_Init(void)
 {
 #if (SYSTEM_USE_IWDG == 1U)
-    IWDG_HandleTypeDef hiwdg_instance;  // 修复：使用局部变量而不是全局变量
-    
-    hiwdg_instance.Instance = IWDG;
-    hiwdg_instance.Init.Prescaler = IWDG_PRESCALER_256;  // 预分频系数256，假设LSI 40KHz，则计数频率约156Hz
-    hiwdg_instance.Init.Reload = IWDG_RELOAD_VALUE;      // 重装载值，约2秒超时
+    hiwdg.Instance = IWDG;
+    hiwdg.Init.Prescaler = IWDG_PRESCALER_256;  // 预分频系数256，假设LSI 40KHz，则计数频率约156Hz
+    hiwdg.Init.Reload = IWDG_RELOAD_VALUE;      // 重装载值，约2秒超时
 
-    if (HAL_IWDG_Init(&hiwdg_instance) != HAL_OK)
+    if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
     {
         // 看门狗初始化失败，记录错误
         ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
@@ -435,9 +440,6 @@ static void System_IWDG_Init(void)
         // 看门狗初始化成功
         System_Monitor_Log("IWDG initialized successfully\r\n");
     }
-#else
-    // 看门狗未启用
-    System_Monitor_Log("IWDG disabled by configuration\r\n");
 #endif
 }
 
@@ -449,15 +451,8 @@ static void System_IWDG_Init(void)
 void System_IWDG_Feed(void)
 {
 #if (SYSTEM_USE_IWDG == 1U)
-    IWDG_HandleTypeDef hiwdg_instance;  // 修复：使用局部变量而不是未定义的全局变量
-    hiwdg_instance.Instance = IWDG;
-    hiwdg_instance.Init.Prescaler = IWDG_PRESCALER_256;
-    hiwdg_instance.Init.Reload = IWDG_RELOAD_VALUE;
-    
-    // 重新初始化IWDG句柄，因为每次喂狗不需要重新配置
-    // 实际上，只需要调用HAL_IWDG_Refresh函数
-    // 正确的喂狗方式是调用HAL_IWDG_Refresh，但需要一个有效的IWDG句柄
-    // 因为IWDG在初始化后已经在运行，所以只需刷新即可
-    HAL_IWDG_Refresh(&hiwdg_instance);
+    HAL_IWDG_Refresh(&hiwdg);
+#else
+    /* IWDG disabled, do nothing */
 #endif
 }

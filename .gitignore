@@ -1,7 +1,9 @@
 docs/
+
 MDK-ARM/ModbusRTU_Gateway/
 MDK-ARM/*.uvguix.*
 MDK-ARM/*.uvoptx
+
 *.axf
 *.hex
 *.map
@@ -12,3 +14,13 @@ MDK-ARM/*.uvoptx
 *.o
 *.dep
 *.lnp
+*.list
+*.scvd
+
+.vscode/
+
+.mxproject
+*.ioc.backup
+
+.DS_Store
+Thumbs.db

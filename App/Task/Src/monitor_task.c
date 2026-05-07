@@ -40,4 +40,3 @@ void Start_Monitor_Task(void const * argument)
     }
     osThreadTerminate(NULL);
 }
-

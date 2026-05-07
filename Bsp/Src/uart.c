@@ -2,9 +2,7 @@
 #include "uart.h"
 #include "error_handler.h"
 #include <string.h>
-// 添加必要的头文件
 #include "cmsis_os.h"
-#include "task.h"
 
 // 内部私有变量
 static UART_HandleTypeDef huart1; 
