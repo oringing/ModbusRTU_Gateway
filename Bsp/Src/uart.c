@@ -1,5 +1,6 @@
 // Bsp/Src/uart.c
 #include "uart.h"
+#include "led.h"        // 新增：包含 LED 驱动头文件
 #include "error_handler.h"
 #include <string.h>
 #include "cmsis_os.h"
@@ -29,7 +30,9 @@ static uint32_t s_last_recover_try_tick = 0U;
 static uint32_t s_last_recover_fail_log_tick = 0U;
 static uint32_t s_last_post_frame_restart_log_tick = 0U;
 
-
+static uint32_t s_recovery_retry_count = 0U;
+static bool s_uart_hw_fault = false;
+static uint32_t s_success_rx_count = 0U;
 
 static HAL_StatusTypeDef BSP_UART_StartReceiveByteRaw(void)
 {
@@ -78,7 +81,7 @@ static void BSP_UART_RequestRecoveryFromISR(void)
 
 static void BSP_UART_FinalizeFrameFromISR(void)
 {
-    HAL_StatusTypeDef restart_status = HAL_ERROR;
+    
     uint8_t *sealed_buffer = NULL;
     uint8_t *new_active_buffer = NULL;
 
@@ -102,6 +105,18 @@ static void BSP_UART_FinalizeFrameFromISR(void)
     s_ready_frame_len = rx_count;
     rx_count = 0U;
     frame_ready = true;
+
+    /* 如果之前判定为硬件故障，现在收到了完整帧，说明线路恢复了 */
+    if (s_uart_hw_fault) {
+        s_success_rx_count++;
+        if (s_success_rx_count >= 5U) { // 连续成功接收 5 次，认为故障已消除
+            s_uart_hw_fault = false;
+            s_recovery_retry_count = 0U;
+            s_success_rx_count = 0U;
+        }
+    } else {
+        s_success_rx_count = 0U;
+    }
 
     if (!BSP_UART_RestartReceiveFromBufferHead(&restart_status)) {
         s_rx_need_recovery = true;
@@ -179,7 +194,7 @@ static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef *huart)
 
 static void BSP_UART_RecoveryIfNeeded(void)
 {
-    HAL_StatusTypeDef restart_status = HAL_ERROR;
+    
 
     if (!s_rx_need_recovery) {
         return;
@@ -192,6 +207,11 @@ static void BSP_UART_RecoveryIfNeeded(void)
         return;
     }
 
+    /* 如果已经判定为硬件故障，则停止自动恢复尝试 */
+    if (s_uart_hw_fault) {
+        return;
+    }
+
     /* Avoid hot-loop retries in task polling path. */
     if ((HAL_GetTick() - s_last_recover_try_tick) < 5U) {
         return;
@@ -201,8 +221,9 @@ static void BSP_UART_RecoveryIfNeeded(void)
     s_rx_need_recovery = false;
 
     if (!BSP_UART_ResetStateAndRestartReceive(&restart_status)) {
+        s_recovery_retry_count++;
+        
         /* HAL_BUSY is expected transiently when RX state has not fully released. */
-        s_rx_need_recovery = true;
         if (restart_status != HAL_BUSY) {
             s_uart_error_count++;
             if ((HAL_GetTick() - s_last_recover_fail_log_tick) >= 1000U) {
@@ -210,6 +231,29 @@ static void BSP_UART_RecoveryIfNeeded(void)
                 ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
             }
         }
+
+        /* 检查是否超过最大重试次数 */
+        if (s_recovery_retry_count >= UART_MAX_RECOVERY_RETRY) {
+            s_uart_hw_fault = true;
+            s_rx_need_recovery = false; // 清除请求，防止死循环
+            
+            // === 新增：故障反馈机制 ===
+            ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__); // 1. 尝试通过 UART 发送日志
+            
+            // 2. LED 故障指示：快速闪烁 5 次，表示 UART 硬件故障
+            for(int i = 0; i < 5; i++) {
+                BSP_LED_On();
+                HAL_Delay(50);
+                BSP_LED_Off();
+                HAL_Delay(50);
+            }
+            // =========================
+        } else {
+            s_rx_need_recovery = true; // 没超限，继续标记需要恢复
+        }
+    } else {
+        /* 恢复成功，重置计数器 */
+        s_recovery_retry_count = 0U;
     }
 }
 
@@ -374,6 +418,7 @@ void BSP_UART_IRQHandler(void)
     }
 
     s_uart_irq_busy = 0U;
+
 }
 
 

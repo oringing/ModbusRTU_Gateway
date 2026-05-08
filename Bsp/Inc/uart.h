@@ -21,6 +21,7 @@
 #define UART_ERROR_LOG_THROTTLE_MS        1000U
 #define UART_ERROR_STREAK_RECOVER_TH      3U
 #define UART_IRQ_REENTRY_RECOVER_TH       8U
+#define UART_MAX_RECOVERY_RETRY           10U   // 最大恢复重试次数，超限则判定硬件故障
 
 // 函数声明
 void BSP_UART_Init(void);
