@@ -23,6 +23,11 @@
 #define UART_IRQ_REENTRY_RECOVER_TH       8U
 #define UART_MAX_RECOVERY_RETRY           10U   // 最大恢复重试次数，超限则判定硬件故障
 
+// --- 错误分级处理阈值 (P1-004) ---
+#define UART_FE_RECOVER_STREAK_TH         3U    // FE/NE 连续错误次数阈值（触发恢复）
+#define UART_PE_RECOVER_STREAK_TH         5U    // PE 连续错误次数阈值（触发恢复）
+#define UART_ERROR_CLASSIFY_FAULT_TH      10U   // 单类错误累计次数阈值（标记硬件故障）
+
 // 函数声明
 void BSP_UART_Init(void);
 void BSP_UART_PrintString(const char *str);

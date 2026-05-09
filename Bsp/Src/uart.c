@@ -24,6 +24,9 @@ static volatile uint32_t s_uart_pe_count = 0U;
 static volatile uint32_t s_uart_error_streak = 0U;
 static volatile uint32_t s_uart_irq_reentry_count = 0U;
 static volatile uint8_t s_uart_irq_busy = 0U;
+// P1-004: 错误分级处理计数器
+static volatile uint32_t s_uart_fe_streak = 0U;     // FE/NE 连续错误计数
+static volatile uint32_t s_uart_pe_streak = 0U;     // PE 连续错误计数
 static volatile uint8_t s_uart_tx_in_progress = 0U;
 static uint32_t s_last_error_log_tick = 0U;
 static uint32_t s_last_recover_try_tick = 0U;
@@ -81,7 +84,7 @@ static void BSP_UART_RequestRecoveryFromISR(void)
 
 static void BSP_UART_FinalizeFrameFromISR(void)
 {
-    
+    HAL_StatusTypeDef restart_status = HAL_OK;
     uint8_t *sealed_buffer = NULL;
     uint8_t *new_active_buffer = NULL;
 
@@ -151,25 +154,46 @@ static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef *huart)
     error_code = huart->ErrorCode;
     if (error_code == HAL_UART_ERROR_NONE) {
         s_uart_error_streak = 0U;
+        s_uart_fe_streak = 0U;
+        s_uart_pe_streak = 0U;
         return;
     }
 
+    /* P1-004: 错误分级处理逻辑 */
+    // 1. ORE（溢出错误）：数据接收过快，缓冲区溢出，立即恢复
     if ((error_code & HAL_UART_ERROR_ORE) != 0U) {
         s_uart_ore_count++;
         has_error = true;
         need_immediate_recover = true;
     }
-    if ((error_code & HAL_UART_ERROR_FE) != 0U) {
-        s_uart_fe_count++;
+    
+    // 2. FE（帧错误）/ NE（噪声错误）：连续 3 次触发恢复
+    if ((error_code & (HAL_UART_ERROR_FE | HAL_UART_ERROR_NE)) != 0U) {
+        if ((error_code & HAL_UART_ERROR_FE) != 0U) {
+            s_uart_fe_count++;
+        }
+        if ((error_code & HAL_UART_ERROR_NE) != 0U) {
+            s_uart_ne_count++;
+        }
+        s_uart_fe_streak++;
         has_error = true;
+        
+        // 连续错误达到阈值，触发恢复
+        if (s_uart_fe_streak >= UART_FE_RECOVER_STREAK_TH) {
+            need_immediate_recover = true;
+        }
     }
-    if ((error_code & HAL_UART_ERROR_NE) != 0U) {
-        s_uart_ne_count++;
-        has_error = true;
-    }
+    
+    // 3. PE（校验错误）：连续 5 次触发恢复
     if ((error_code & HAL_UART_ERROR_PE) != 0U) {
         s_uart_pe_count++;
+        s_uart_pe_streak++;
         has_error = true;
+        
+        // 连续错误达到阈值，触发恢复
+        if (s_uart_pe_streak >= UART_PE_RECOVER_STREAK_TH) {
+            need_immediate_recover = true;
+        }
     }
 
     if (!has_error) {
@@ -194,7 +218,7 @@ static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef *huart)
 
 static void BSP_UART_RecoveryIfNeeded(void)
 {
-    
+    HAL_StatusTypeDef restart_status = HAL_OK;
 
     if (!s_rx_need_recovery) {
         return;
