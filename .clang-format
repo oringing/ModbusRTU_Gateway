@@ -1,0 +1,67 @@
+# .clang-format - 嵌入式 C 代码格式化规则
+# 基于 LLVM 风格，适配嵌入式项目规范
+
+Language:        C
+
+# 基础缩进
+IndentWidth:     4
+TabWidth:        4
+UseTab:          Never
+BreakBeforeBraces: Allman  # 函数/结构体大括号独占一行
+
+# 列宽限制（考虑嵌入式终端显示）
+ColumnLimit:     100
+
+# 指针和引用对齐
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# 空格控制
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: false
+SpacesInContainerLiterals: true
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# 换行控制
+AllowAllArgumentsOnNextLine: true
+AllowAllConstructorInitializersOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# 宏和预处理
+IndentPPDirectives: AfterHash
+MacroBlockBegin: ''
+MacroBlockEnd: ''
+
+# 注释对齐
+AlignTrailingComments: true
+CommentPragmas: '^ IWYU pragma:'
+
+# 枚举和结构体
+SortIncludes: CaseInsensitive
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex:           '^<.*\.h>$'
+    Priority:        1
+  - Regex:           '^".*"$'
+    Priority:        2
+
+# 嵌入式特殊规则
+FixNamespaceComments: false
+Cpp11BracedListStyle: true
+Standard:            c99  # 嵌入式常用 C99 标准

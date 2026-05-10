@@ -1,11 +1,10 @@
-docs/
+docs/ignore_docs/
 
 MDK-ARM/ModbusRTU_Gateway/
 MDK-ARM/*.uvguix.*
 MDK-ARM/*.uvoptx
 
 *.axf
-*.hex
 *.map
 *.htm
 *.build_log.htm

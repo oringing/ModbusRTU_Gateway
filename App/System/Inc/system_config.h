@@ -5,9 +5,9 @@
 #include "cmsis_os.h"
 
 /* 任务栈大小定义（单位：words） */
-#define LED_TASK_STACK_SIZE              64   /* 实测使用26words */
-#define UART_TASK_STACK_SIZE             128  /* 实测使用48words */
-#define MONITOR_TASK_STACK_SIZE          240  /* 实测使用72words*/
+#define LED_TASK_STACK_SIZE              64   /* 空闲/高压均使用28words，预留1.3倍剩余量 */
+#define UART_TASK_STACK_SIZE             125   /* 0.1s/帧高压峰值使用54words，预留1.3倍剩余量 */
+#define MONITOR_TASK_STACK_SIZE          165  /* 空闲/高压均使用74words，预留1.3倍剩余量 */
 
 /* 任务优先级定义 */
 #define LED_TASK_PRIORITY                osPriorityLow
@@ -15,8 +15,8 @@
 #define MONITOR_TASK_PRIORITY            osPriorityBelowNormal
 
 /* 系统监控相关 */
-#define STACK_WATERMARK_CHECK_INTERVAL   100U //  * 100ms = 实际打印间隔
-#define STACK_WATERMARK_LOG_DELAY        100U
+#define STACK_WATERMARK_CHECK_INTERVAL   10U // 栈水位检查间隔（单位：秒，实际间隔 = 10 × 1000ms）
+#define STACK_WATERMARK_LOG_DELAY        1000U // 任务循环延迟（单位：ms）
 
 /* 看门狗配置 */
 #define SYSTEM_USE_IWDG                  1U      /* 1U启用硬件看门狗，0U禁用 */
@@ -24,7 +24,7 @@
 #define IWDG_WINDOW_VALUE                4095U   /* 窗口值，这里设为最大值，禁用窗口功能 */
 
 /* 任务栈水位、看门狗初始化信息打印开关 */
-#define SYSTEM_UART_TEXT_LOG_ENABLE      1U    /* Modbus 联调时默认0U关闭，禁止在 USART1 上发送 ASCII 文本日志，避免污染总线，当为 1U 时允许发送 */
+#define SYSTEM_UART_TEXT_LOG_ENABLE      1U    
 
 /* 栈水位预警阈值（单位：words，低于该值触发告警） */
 #define LED_STACK_WM_WARN_WORDS          24U
