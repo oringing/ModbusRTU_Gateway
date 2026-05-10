@@ -1,4 +1,6 @@
+
 docs/ignore_docs/
+
 
 MDK-ARM/ModbusRTU_Gateway/
 MDK-ARM/*.uvguix.*
@@ -17,9 +19,10 @@ MDK-ARM/*.uvoptx
 *.scvd
 
 .vscode/
-
 .mxproject
 *.ioc.backup
 
 .DS_Store
+
 Thumbs.db
+
