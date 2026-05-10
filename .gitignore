@@ -1,11 +1,12 @@
-docs/
-App/Test/
+
+docs/ignore_docs/
+
 
 MDK-ARM/ModbusRTU_Gateway/
 MDK-ARM/*.uvguix.*
 MDK-ARM/*.uvoptx
+
 *.axf
-*.hex
 *.map
 *.htm
 *.build_log.htm
@@ -14,13 +15,14 @@ MDK-ARM/*.uvoptx
 *.o
 *.dep
 *.lnp
-*.lst
+*.list
 *.scvd
 
 .vscode/
-
 .mxproject
 *.ioc.backup
 
 .DS_Store
+
 Thumbs.db
+

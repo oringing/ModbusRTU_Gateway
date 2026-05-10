@@ -31,13 +31,11 @@
 #include "modbus.h"
 #include "system_ctrl.h"
 #include "error_handler.h"
-
+#include "system_config.h"
 /* USER CODE END Includes */
 
-/* Task Handles Definition ---------------------------------------------------*/
-/* USER CODE END PV */
-
 void SystemClock_Config(void);
+
 int main(void)
 {
     /* MCU Configuration--------------------------------------------------------*/
@@ -48,10 +46,10 @@ int main(void)
     /* USER CODE BEGIN Init */
     BSP_LED_Init();
     BSP_UART_Init();
+    
     Modbus_Init();
     System_Ctrl_Init();
-    /* USER CODE END Init */
-
+    
     /* Create all application tasks via system control module */
     if (System_StartTasks() != SYSTEM_OK) {
         ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
@@ -60,11 +58,7 @@ int main(void)
 
     /* Start scheduler */
     osKernelStart();
-
-    /* We should never get here as control is now taken by the scheduler */
-    while (1)
-    {
-    }
+    /* USER CODE END Init */
 }
 
 /**
@@ -100,5 +94,3 @@ void SystemClock_Config(void)
       Error_Handler();
     }
 }
-
-

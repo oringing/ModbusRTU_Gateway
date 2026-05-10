@@ -22,8 +22,6 @@ void Start_Monitor_Task(void const * argument)
 {
     (void)argument;
     uint32_t check_counter = 0;
-
-    s_monitor_task_stop = 0U;
     
     while (s_monitor_task_stop == 0U)
     {
@@ -31,10 +29,11 @@ void Start_Monitor_Task(void const * argument)
         if (check_counter >= STACK_WATERMARK_CHECK_INTERVAL) {
             System_Check_Stack_Watermark();
             check_counter = 0;
-        }
+        }   
         
+        System_IWDG_Feed();// 喂狗操作 - 确保系统正常运行，测试时注释掉这行以验证看门狗复位功能
+       
         osDelay(STACK_WATERMARK_LOG_DELAY);
     }
     osThreadTerminate(NULL);
 }
-

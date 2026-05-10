@@ -13,8 +13,13 @@
 #include "modbus.h"
 #include "uart.h"
 #include "error_handler.h"
+#include "stm32f1xx_hal_iwdg.h"
 
 /* Private variables ---------------------------------------------------------*/
+#if (SYSTEM_USE_IWDG == 1U)
+static IWDG_HandleTypeDef hiwdg;  // 全局IWDG句柄
+#endif
+
 static osThreadId s_led_task_handle = NULL;
 static osThreadId s_uart_task_handle = NULL;
 static osThreadId s_monitor_task_handle = NULL;
@@ -34,6 +39,7 @@ static uint32_t System_GetTaskStackWarnThreshold(const char *task_name);
 static bool *System_GetTaskStackWarnFlag(const char *task_name);
 static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id);
 static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id);
+static void System_IWDG_Init(void);
 
 /**
   * @brief  Initialize system control module
@@ -42,6 +48,8 @@ static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id);
   */
 void System_Init(void)
 {
+    // 初始化看门狗
+    System_IWDG_Init();
     (void)UART_Driver_Init();
 }
 
@@ -70,6 +78,7 @@ SystemStatus_t System_StartTasks(void)
             return s_last_error;
         }
     }
+    
     if (s_uart_task_handle == NULL) {
         s_uart_task_handle = System_CreateTask("UART_Task",
                                                Start_UART_Task,
@@ -82,6 +91,7 @@ SystemStatus_t System_StartTasks(void)
             return s_last_error;
         }
     }
+    
     if (s_monitor_task_handle == NULL) {
         s_monitor_task_handle = System_CreateTask("Monitor_Task",
                                                   Start_Monitor_Task,
@@ -94,6 +104,7 @@ SystemStatus_t System_StartTasks(void)
             return s_last_error;
         }
     }
+    
     s_last_error = SYSTEM_OK;
     return s_last_error;
 }
@@ -192,6 +203,7 @@ static void System_Monitor_Log(const char *msg)
     if (msg == NULL) {
         return;
     }
+
 #if (SYSTEM_UART_TEXT_LOG_ENABLE == 1U)
     (void)UART_Driver_Send((const uint8_t *)msg, (uint16_t)strlen(msg), 20U);
 #else
@@ -404,4 +416,43 @@ static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id)
         default:
             return osPriorityError;
     }
+}
+
+/**
+  * @brief  Initialize IWDG (Independent Watchdog)
+  * @param  None
+  * @retval None
+  */
+static void System_IWDG_Init(void)
+{
+#if (SYSTEM_USE_IWDG == 1U)
+    hiwdg.Instance = IWDG;
+    hiwdg.Init.Prescaler = IWDG_PRESCALER_256;  // 预分频系数256，假设LSI 40KHz，则计数频率约156Hz
+    hiwdg.Init.Reload = IWDG_RELOAD_VALUE;      // 重装载值，约2秒超时
+
+    if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+    {
+        // 看门狗初始化失败，记录错误
+        ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
+    }
+    else
+    {
+        // 看门狗初始化成功
+        System_Monitor_Log("IWDG initialized successfully\r\n");
+    }
+#endif
+}
+
+/**
+  * @brief  Feed IWDG (Refresh Independent Watchdog)
+  * @param  None
+  * @retval None
+  */
+void System_IWDG_Feed(void)
+{
+#if (SYSTEM_USE_IWDG == 1U)
+    HAL_IWDG_Refresh(&hiwdg);
+#else
+    /* IWDG disabled, do nothing */
+#endif
 }

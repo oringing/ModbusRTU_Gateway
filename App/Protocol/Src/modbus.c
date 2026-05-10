@@ -1,7 +1,9 @@
 // App/Protocol/Src/modbus.c
+#include "uart.h"
 #include "driver_uart.h"
 #include "modbus.h"
 #include "cmsis_os.h"
+#include "task.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -19,17 +21,12 @@ typedef struct {
 
 static ModbusRegister_t holding_regs[MODBUS_REG_MAX_COUNT];
 static const uint16_t s_default_regs[] = {
-    0x1234U, 0x5678U, 0xABCDU, 0x1234U, 90U,
-    0U, 0U, 0U, 0U, 0U
+    0x1234U, 0x5678U, 0xABCDU, 0x1234U, 0x5000U
 };
 
 static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8_t *func_code);
 static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_len);
-static void Modbus_HandleWriteSingleReg(const uint8_t *frame, uint16_t frame_len);
 static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count);
-static bool Modbus_IsWritableRegister(uint16_t addr);
-static bool Modbus_IsWriteValueValid(uint16_t addr, uint16_t value);
-static void Modbus_SendRawResponse(const uint8_t *data, uint16_t len);
 static void Modbus_EnsureRegisterMutex(void);
 static bool Modbus_LockRegisters(void);
 static void Modbus_UnlockRegisters(void);
@@ -38,20 +35,6 @@ static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value)
 {
     (void)old_value;
     (void)new_value;
-}
-
-static bool Modbus_IsWritableRegister(uint16_t addr)
-{
-    return (addr == MODBUS_REG_ADDR_SERVO_TARGET);
-}
-
-static bool Modbus_IsWriteValueValid(uint16_t addr, uint16_t value)
-{
-    if (addr == MODBUS_REG_ADDR_SERVO_TARGET) {
-        return (value >= MODBUS_SERVO_TARGET_MIN) && (value <= MODBUS_SERVO_TARGET_MAX);
-    }
-
-    return false;
 }
 
 static void Modbus_EnsureRegisterMutex(void)
@@ -81,15 +64,6 @@ static void Modbus_UnlockRegisters(void)
     if (s_modbus_reg_mutex != NULL) {
         osMutexRelease(s_modbus_reg_mutex);
     }
-}
-
-static void Modbus_SendRawResponse(const uint8_t *data, uint16_t len)
-{
-    if (data == NULL || len == 0U) {
-        return;
-    }
-
-    (void)UART_Driver_Send(data, len, MODBUS_TX_TIMEOUT_MS);
 }
 
 /**
@@ -126,7 +100,7 @@ static void Modbus_SendException(uint8_t func_code, uint8_t exception_code)
     error_response[3] = (uint8_t)(error_crc & 0xFFU);
     error_response[4] = (uint8_t)((error_crc >> 8U) & 0xFFU);
 
-    (void)UART_Driver_Send(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, MODBUS_TX_TIMEOUT_MS);
+    (void)UART_Driver_Send(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, BSP_UART_TX_TIMEOUT);
 }
 
 static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8_t *func_code)
@@ -180,7 +154,7 @@ static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count)
     modbus_tx_buffer[resp_data_len] = (uint8_t)(resp_crc & 0xFFU);
     modbus_tx_buffer[resp_data_len + 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
-    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + 2U), MODBUS_TX_TIMEOUT_MS);
+    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + 2U), BSP_UART_TX_TIMEOUT);
 }
 
 static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_len)
@@ -188,7 +162,7 @@ static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_le
     /* Current implementation only supports fixed-length 0x03 request frame:
      * addr(1) + func(1) + start(2) + count(2) + crc(2) = 8 bytes.
      * This filters out self-echoed/invalid frames early. */
-    if (frame_len != MODBUS_RTU_READ_REQ_LEN) {
+    if (frame == NULL || frame_len != MODBUS_RTU_READ_REQ_LEN) {
         return;
     }
 
@@ -200,49 +174,53 @@ static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_le
         return;
     }
 
-    if (((uint32_t)start_addr + (uint32_t)reg_count) > (uint32_t)MODBUS_REG_MAX_COUNT) {
+    // 添加额外的边界检查，防止整数溢出和越界访问
+    if (start_addr >= MODBUS_REG_MAX_COUNT || 
+        reg_count > MODBUS_REG_MAX_COUNT ||
+        (uint32_t)start_addr + (uint32_t)reg_count > (uint32_t)MODBUS_REG_MAX_COUNT) {
         Modbus_SendException(MODBUS_FUNC_READ_HOLDING_REGS, MODBUS_EX_ILLEGAL_DATA_ADDRESS);
         return;
     }
 
     Modbus_BuildReadResponse(start_addr, reg_count);
 }
+
+// 处理写单个寄存器的功能
 static void Modbus_HandleWriteSingleReg(const uint8_t *frame, uint16_t frame_len)
 {
-    uint16_t reg_addr = 0U;
-    uint16_t reg_value = 0U;
-
     if (frame == NULL || frame_len != MODBUS_RTU_WRITE_SINGLE_REQ_LEN) {
         return;
     }
 
-    reg_addr = (uint16_t)((uint16_t)frame[2] << 8U) | frame[3];
-    reg_value = (uint16_t)((uint16_t)frame[4] << 8U) | frame[5];
+    uint16_t reg_addr = (uint16_t)((uint16_t)frame[2] << 8U) | frame[3];
+    uint16_t reg_value = (uint16_t)((uint16_t)frame[4] << 8U) | frame[5];
 
+    // 验证寄存器地址是否有效
     if (reg_addr >= MODBUS_REG_MAX_COUNT) {
         Modbus_SendException(MODBUS_FUNC_WRITE_SINGLE_REG, MODBUS_EX_ILLEGAL_DATA_ADDRESS);
         return;
     }
 
-    if (!Modbus_IsWritableRegister(reg_addr)) {
-        Modbus_SendException(MODBUS_FUNC_WRITE_SINGLE_REG, MODBUS_EX_ILLEGAL_DATA_VALUE);
-        return;
-    }
-
-    if (!Modbus_IsWriteValueValid(reg_addr, reg_value)) {
-        Modbus_SendException(MODBUS_FUNC_WRITE_SINGLE_REG, MODBUS_EX_ILLEGAL_DATA_VALUE);
-        return;
-    }
-
+    // 尝试写入寄存器
     if (!Modbus_WriteHoldingRegister(reg_addr, reg_value)) {
         Modbus_SendException(MODBUS_FUNC_WRITE_SINGLE_REG, MODBUS_EX_ILLEGAL_DATA_VALUE);
         return;
     }
 
-    /* Modbus 0x06 success response echoes the validated request frame. */
-    Modbus_SendRawResponse(frame, frame_len);
-}
+    // 发送成功响应 - 回显相同的请求内容
+    modbus_tx_buffer[0] = MODBUS_SLAVE_ADDR;
+    modbus_tx_buffer[1] = MODBUS_FUNC_WRITE_SINGLE_REG;
+    modbus_tx_buffer[2] = (uint8_t)((reg_addr >> 8) & 0xFF);
+    modbus_tx_buffer[3] = (uint8_t)(reg_addr & 0xFF);
+    modbus_tx_buffer[4] = (uint8_t)((reg_value >> 8) & 0xFF);
+    modbus_tx_buffer[5] = (uint8_t)(reg_value & 0xFF);
 
+    uint16_t resp_crc = CalcCRC16(modbus_tx_buffer, 6U);
+    modbus_tx_buffer[6] = (uint8_t)(resp_crc & 0xFFU);
+    modbus_tx_buffer[7] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
+
+    (void)UART_Driver_Send(modbus_tx_buffer, 8U, BSP_UART_TX_TIMEOUT);
+}
 
 void Modbus_Init(void)
 {
@@ -254,7 +232,7 @@ void Modbus_Init(void)
     for (uint16_t i = 0U; i < MODBUS_REG_MAX_COUNT; i++) {
         holding_regs[i].value = 0U;
         holding_regs[i].default_value = 0U;
-        holding_regs[i].read_only = true;
+        holding_regs[i].read_only = false;
         holding_regs[i].on_change = Modbus_OnRegisterChanged;
     }
 
@@ -265,10 +243,6 @@ void Modbus_Init(void)
          i++) {
         holding_regs[i].value = s_default_regs[i];
         holding_regs[i].default_value = s_default_regs[i];
-    }
-
-    if (MODBUS_REG_ADDR_SERVO_TARGET < MODBUS_REG_MAX_COUNT) {
-        holding_regs[MODBUS_REG_ADDR_SERVO_TARGET].read_only = false;
     }
 }
 
