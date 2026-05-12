@@ -29,6 +29,7 @@ void System_HandleFault(ErrorType type);
 
 ErrorType Error_GetLastType(void);
 uint32_t Error_GetCount(ErrorType type);
+void Error_Handler(void);
 
 #ifdef __cplusplus
 }

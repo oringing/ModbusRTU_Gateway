@@ -27,6 +27,7 @@ static void Error_SendText(const char *text)
 
 void Error_Handler(void)
 {
+    /* 记录错误并进入安全模式 */
     ErrorLogRecord(ERROR_HAL, __FILE__, __LINE__);
     System_NotifyError(ERROR_HAL);
     System_EnterSafeMode();

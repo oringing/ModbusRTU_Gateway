@@ -1,6 +1,7 @@
 // App/Protocol/Src/modbus.c
 #include "uart.h"
 #include "driver_uart.h"
+#include "driver_servo.h" // 新增：引入舵机驱动
 #include "modbus.h"
 #include "cmsis_os.h"
 #include "task.h"
@@ -222,6 +223,32 @@ static void Modbus_HandleWriteSingleReg(const uint8_t *frame, uint16_t frame_len
     (void)UART_Driver_Send(modbus_tx_buffer, 8U, BSP_UART_TX_TIMEOUT);
 }
 
+/* Private function prototypes -----------------------------------------------*/
+static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value);
+
+/**
+ * @brief 舵机目标角度变更回调 (通道 1 - PA6)
+ * @note 严格遵循自查清单：
+ * 1. 高内聚：只处理舵机逻辑。
+ * 2. 边界检查：确保值在 0-180 之间（虽然上层已校验，此处做双重保险）。
+ * 3. 实时性：直接调用驱动，无复杂计算。
+ */
+static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value)
+{
+    /* 避免重复设置相同的占空比 */
+    if (old_value == new_value) {
+        return;
+    }
+
+    /* 边界检查强化 */
+    if (new_value > MODBUS_SERVO_TARGET_MAX) {
+        return; 
+    }
+
+    /* 原子性操作：直接更新硬件 PWM，指定控制通道 1 */
+    Servo_Driver_SetAngle(1U, new_value);
+}
+
 void Modbus_Init(void)
 {
     /* Create the register mutex during startup so later task access does not
@@ -244,6 +271,12 @@ void Modbus_Init(void)
         holding_regs[i].value = s_default_regs[i];
         holding_regs[i].default_value = s_default_regs[i];
     }
+
+    /* Step 1: 寄存器回调映射 - 将 0x0004 绑定到舵机控制 */
+    Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_TARGET, Modbus_OnServoTargetChanged);
+    
+    /* 初始化舵机驱动 */
+    Servo_Driver_Init();
 }
 
 bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t *value)
