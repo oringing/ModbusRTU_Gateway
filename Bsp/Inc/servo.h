@@ -24,6 +24,7 @@ extern "C" {
 
 void BSP_Servo_Init(void);
 void BSP_Servo_SetAngle(uint8_t channel, uint16_t angle);
+void BSP_Servo_SetPulseWidth(uint8_t channel, uint16_t pulse_us);
 
 #ifdef __cplusplus
 }

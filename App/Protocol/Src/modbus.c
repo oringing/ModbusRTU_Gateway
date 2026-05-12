@@ -225,6 +225,7 @@ static void Modbus_HandleWriteSingleReg(const uint8_t *frame, uint16_t frame_len
 
 /* Private function prototypes -----------------------------------------------*/
 static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value);
+static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value);
 
 /**
  * @brief 舵机目标角度变更回调 (通道 1 - PA6)
@@ -247,6 +248,23 @@ static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value)
 
     /* 原子性操作：直接更新硬件 PWM，指定控制通道 1 */
     Servo_Driver_SetAngle(1U, new_value);
+}
+
+/**
+ * @brief 360° 舵机速度变更回调 (通道 2 - PA7)
+ */
+static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value)
+{
+    if (old_value == new_value) {
+        return;
+    }
+
+    if (new_value > MODBUS_SERVO_SPEED_MAX) {
+        return; 
+    }
+
+    /* 指定控制通道 2，传入速度值 */
+    Servo_Driver_SetSpeed(2U, (uint8_t)new_value);
 }
 
 void Modbus_Init(void)
@@ -272,8 +290,9 @@ void Modbus_Init(void)
         holding_regs[i].default_value = s_default_regs[i];
     }
 
-    /* Step 1: 寄存器回调映射 - 将 0x0004 绑定到舵机控制 */
+    /* Step 1: 寄存器回调映射 */
     Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_TARGET, Modbus_OnServoTargetChanged);
+    Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_SPEED, Modbus_OnServoSpeedChanged);
     
     /* 初始化舵机驱动 */
     Servo_Driver_Init();

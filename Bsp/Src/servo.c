@@ -84,3 +84,29 @@ void BSP_Servo_SetAngle(uint8_t channel, uint16_t angle)
     /* 更新比较寄存器 */
     __HAL_TIM_SET_COMPARE(&htim_servo, tim_channel, pulse);
 }
+
+/**
+ * @brief 直接设置指定通道的脉冲宽度 (单位：微秒)
+ * @param channel: 通道索引 (1 或 2)
+ * @param pulse_us: 脉冲宽度 (500 ~ 2500)
+ */
+void BSP_Servo_SetPulseWidth(uint8_t channel, uint16_t pulse_us)
+{
+    uint32_t tim_channel;
+
+    /* 边界检查：确保脉宽在安全范围内 */
+    if (pulse_us < 500U) pulse_us = 500U;
+    if (pulse_us > 2500U) pulse_us = 2500U;
+
+    /* 根据通道选择对应的定时器通道常量 */
+    if (channel == 1U) {
+        tim_channel = SERVO_CH1_CHANNEL;
+    } else if (channel == 2U) {
+        tim_channel = SERVO_CH2_CHANNEL;
+    } else {
+        return;
+    }
+
+    /* 计数器频率为 1MHz，所以 1us = 1 个计数值 */
+    __HAL_TIM_SET_COMPARE(&htim_servo, tim_channel, (uint32_t)pulse_us);
+}

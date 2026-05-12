@@ -8,11 +8,12 @@
 #include "string.h"
 #include "led.h"
 #include "uart.h"
+#include "servo.h"
 #include "modbus.h"
 #include "system_ctrl.h"
 #include "error_handler.h"
 #include "system_config.h"
-#include "driver_servo.h" // 新增：引入舵机驱动头文件
+
 /* USER CODE END Includes */
 
 void SystemClock_Config(void);
@@ -27,6 +28,7 @@ int main(void)
     /* USER CODE BEGIN Init */
     BSP_LED_Init();
     BSP_UART_Init();
+	BSP_Servo_Init();
     
     Modbus_Init();
     System_Ctrl_Init();

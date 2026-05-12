@@ -10,6 +10,7 @@ extern "C" {
 
 bool Servo_Driver_Init(void);
 void Servo_Driver_SetAngle(uint8_t channel, uint16_t angle);
+void Servo_Driver_SetSpeed(uint8_t channel, uint8_t speed_val);
 
 #ifdef __cplusplus
 }

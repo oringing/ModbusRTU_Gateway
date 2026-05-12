@@ -34,12 +34,16 @@ extern "C" {
 #define MODBUS_REG_ADDR_SENSOR_HUMIDITY  1U
 #define MODBUS_REG_ADDR_DEVICE_STATUS    2U
 #define MODBUS_REG_ADDR_SYSTEM_FLAGS     3U
-#define MODBUS_REG_ADDR_SERVO_TARGET     4U
-#define MODBUS_REG_ADDR_RESERVED_BEGIN   5U
+#define MODBUS_REG_ADDR_SERVO_TARGET     4U  /* 180° 舵机角度 */
+#define MODBUS_REG_ADDR_SERVO_SPEED      5U  /* 360° 舵机速度/方向 */
+#define MODBUS_REG_ADDR_RESERVED_BEGIN   6U
 #define MODBUS_REG_ADDR_RESERVED_END     9U
 
 #define MODBUS_SERVO_TARGET_MIN          0U
 #define MODBUS_SERVO_TARGET_MAX          180U
+#define MODBUS_SERVO_SPEED_MIN           0U
+#define MODBUS_SERVO_SPEED_MAX           255U
+#define MODBUS_SERVO_SPEED_NEUTRAL       127U /* 360° 舵机停止点 */
 
 typedef void (*ModbusRegisterOnChange_t)(uint16_t old_value, uint16_t new_value);
 
