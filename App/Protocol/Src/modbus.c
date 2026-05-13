@@ -22,7 +22,7 @@ typedef struct {
 
 static ModbusRegister_t holding_regs[MODBUS_REG_MAX_COUNT];
 static const uint16_t s_default_regs[] = {
-    0x1234U, 0x5678U, 0xABCDU, 0x1234U, 0x5000U
+    0x1234U, 0x5678U, 0x0000U, 0x1234U, 0x5000U
 };
 
 static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8_t *func_code);
@@ -31,6 +31,46 @@ static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count);
 static void Modbus_EnsureRegisterMutex(void);
 static bool Modbus_LockRegisters(void);
 static void Modbus_UnlockRegisters(void);
+
+/* 前置声明：解决 Modbus_Init 中引用回调函数的编译报错 */
+static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value);
+static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value);
+static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value);
+
+void Modbus_Init(void)
+{
+    /* Create the register mutex during startup so later task access does not
+     * race on first-time initialization. If creation fails here, runtime calls
+     * will retry through Modbus_LockRegisters(). */
+    Modbus_EnsureRegisterMutex();
+
+    for (uint16_t i = 0U; i < MODBUS_REG_MAX_COUNT; i++) {
+        holding_regs[i].value = 0U;
+        holding_regs[i].default_value = 0U;
+        holding_regs[i].read_only = false;
+        holding_regs[i].on_change = Modbus_OnRegisterChanged;
+    }
+
+    /* Load bounded defaults: avoid hard-coded index writes beyond configured map size. */
+    for (uint16_t i = 0U;
+         i < (uint16_t)(sizeof(s_default_regs) / sizeof(s_default_regs[0])) &&
+         i < MODBUS_REG_MAX_COUNT;
+         i++) {
+        holding_regs[i].value = s_default_regs[i];
+        holding_regs[i].default_value = s_default_regs[i];
+    }
+
+    
+    /* 新增：将设备状态寄存器设为只读 */
+    holding_regs[MODBUS_REG_ADDR_DEVICE_STATUS].read_only = true;
+
+    /* Step 1: 寄存器回调映射 */
+    Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_TARGET, Modbus_OnServoTargetChanged);
+    Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_SPEED, Modbus_OnServoSpeedChanged);
+    
+    /* 初始化舵机驱动 */
+    Servo_Driver_Init();
+}
 
 static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value)
 {
@@ -267,37 +307,6 @@ static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value)
     Servo_Driver_SetSpeed(2U, (uint8_t)new_value);
 }
 
-void Modbus_Init(void)
-{
-    /* Create the register mutex during startup so later task access does not
-     * race on first-time initialization. If creation fails here, runtime calls
-     * will retry through Modbus_LockRegisters(). */
-    Modbus_EnsureRegisterMutex();
-
-    for (uint16_t i = 0U; i < MODBUS_REG_MAX_COUNT; i++) {
-        holding_regs[i].value = 0U;
-        holding_regs[i].default_value = 0U;
-        holding_regs[i].read_only = false;
-        holding_regs[i].on_change = Modbus_OnRegisterChanged;
-    }
-
-    /* Load bounded defaults: avoid hard-coded index writes beyond configured map size. */
-    for (uint16_t i = 0U;
-         i < (uint16_t)(sizeof(s_default_regs) / sizeof(s_default_regs[0])) &&
-         i < MODBUS_REG_MAX_COUNT;
-         i++) {
-        holding_regs[i].value = s_default_regs[i];
-        holding_regs[i].default_value = s_default_regs[i];
-    }
-
-    /* Step 1: 寄存器回调映射 */
-    Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_TARGET, Modbus_OnServoTargetChanged);
-    Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_SPEED, Modbus_OnServoSpeedChanged);
-    
-    /* 初始化舵机驱动 */
-    Servo_Driver_Init();
-}
-
 bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t *value)
 {
     if (value == NULL || addr >= MODBUS_REG_MAX_COUNT) {
@@ -339,6 +348,26 @@ bool Modbus_WriteHoldingRegister(uint16_t addr, uint16_t value)
     if (on_change != NULL && old_value != value) {
         on_change(old_value, value);
     }
+    return true;
+}
+
+/**
+ * @brief 内部任务专用写入接口（绕过只读检查）
+ * @note 仅供系统任务（如心跳）使用，外部 Modbus 请求不应调用
+ */
+bool Modbus_InternalWriteRegister(uint16_t addr, uint16_t value)
+{
+    if (addr >= MODBUS_REG_MAX_COUNT) {
+        return false;
+    }
+
+    if (!Modbus_LockRegisters()) {
+        return false;
+    }
+
+    holding_regs[addr].value = value;
+    Modbus_UnlockRegisters();
+
     return true;
 }
 

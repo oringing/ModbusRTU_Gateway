@@ -52,6 +52,7 @@ void Modbus_Process(void);
 bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t *value);
 bool Modbus_WriteHoldingRegister(uint16_t addr, uint16_t value);
 bool Modbus_RegisterOnChange(uint16_t addr, ModbusRegisterOnChange_t on_change);
+bool Modbus_InternalWriteRegister(uint16_t addr, uint16_t value);
 
 #ifdef __cplusplus
 }
