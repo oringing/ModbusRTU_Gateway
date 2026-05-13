@@ -15,8 +15,10 @@
 #define MONITOR_TASK_PRIORITY            osPriorityBelowNormal
 
 /* 系统监控相关 */
-#define STACK_WATERMARK_CHECK_INTERVAL   10U // 栈水位检查间隔（单位：秒，实际间隔 = 10 × 1000ms）
-#define STACK_WATERMARK_LOG_DELAY        1000U // 任务循环延迟（单位：ms）
+#define MONITOR_TASK_BASE_DELAY        10U // 监控任务基础循环周期 (单位: ms)
+#define HEARTBEAT_INTERVAL_MS          1000U // 心跳翻转间隔 (单位: ms)
+#define STACK_CHECK_INTERVAL_SEC       60U // 栈水位检查间隔 (单位: s)
+#define IWDG_FEED_INTERVAL_MS          500U // 看门狗喂狗间隔 (单位: ms)
 
 /* 看门狗配置 */
 #define SYSTEM_USE_IWDG                  1U      /* 1U启用硬件看门狗，0U禁用 */

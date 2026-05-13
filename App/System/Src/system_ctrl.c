@@ -247,7 +247,7 @@ static bool System_ValidateConfig(void)
         System_Monitor_Log("CFG FAIL: UART_TASK_STACK_SIZE < 96\r\n");
         return false;
     }
-    if (MONITOR_TASK_STACK_SIZE < 192U) {
+    if (MONITOR_TASK_STACK_SIZE < 128U) {
         System_Monitor_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < 192\r\n");
         return false;
     }

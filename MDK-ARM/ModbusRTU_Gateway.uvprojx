@@ -507,6 +507,21 @@
               <FileType>1</FileType>
               <FilePath>../Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c</FilePath>
             </File>
+            <File>
+              <FileName>stm32f1xx_hal_iwdg.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_iwdg.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_tim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_tim.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_tim_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Drivers\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_tim_ex.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -597,6 +612,11 @@
               <FileType>1</FileType>
               <FilePath>..\Bsp\Src\uart.c</FilePath>
             </File>
+            <File>
+              <FileName>servo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Bsp\Src\servo.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -656,6 +676,11 @@
               <FileName>driver_uart.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\App\Driver\Src\driver_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>driver_servo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Driver\Src\driver_servo.c</FilePath>
             </File>
           </Files>
         </Group>

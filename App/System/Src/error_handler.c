@@ -27,6 +27,7 @@ static void Error_SendText(const char *text)
 
 void Error_Handler(void)
 {
+    /* 记录错误并进入安全模式 */
     ErrorLogRecord(ERROR_HAL, __FILE__, __LINE__);
     System_NotifyError(ERROR_HAL);
     System_EnterSafeMode();
@@ -88,6 +89,13 @@ void System_NotifyError(ErrorType type)
 
 void System_EnterSafeMode(void)
 {
+    /* 临时调试：打印最后触发的错误类型 */
+    char buf[32];
+    int n = snprintf(buf, sizeof(buf), "SAFE_MODE_ENTER: ERR_TYPE=%u\r\n", (unsigned)s_last_error);
+    if (n > 0) {
+        Error_SendText(buf);
+    }
+
     __disable_irq();
     BSP_LED_On();
     while (1) {
