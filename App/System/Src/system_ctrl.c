@@ -15,43 +15,41 @@
 #include "uart.h"
 #include "uart_task.h"
 
-/* Private variables ---------------------------------------------------------*/
+// ---- 私有变量（任务句柄+状态标志）----
 #if (SYSTEM_USE_IWDG == 1U)
-static IWDG_HandleTypeDef hiwdg; // 全局IWDG句柄
+static IWDG_HandleTypeDef hiwdg; // 全局IWDG句柄，仅System_IWDG_Init()写入
 #endif
 
-static osThreadId     s_led_task_handle = NULL;
-static osThreadId     s_uart_task_handle = NULL;
-static osThreadId     s_monitor_task_handle = NULL;
-static SystemStatus_t s_last_error = SYSTEM_OK;
-static char           s_stack_log_line[SYSTEM_STACK_LOG_BUF_SIZE];
-static bool           s_led_stack_warn_active = false;
-static bool           s_uart_stack_warn_active = false;
-static bool           s_monitor_stack_warn_active = false;
+static osThreadId     s_led_task_handle = NULL;      // LED任务句柄
+static osThreadId     s_uart_task_handle = NULL;     // UART任务句柄
+static osThreadId     s_monitor_task_handle = NULL;  // Monitor任务句柄
+static SystemStatus_t s_last_error = SYSTEM_OK;      // 最后一次错误码
+static char           s_stack_log_line[SYSTEM_STACK_LOG_BUF_SIZE]; // 栈日志缓冲区（复用避免栈分配）
+static bool           s_led_stack_warn_active = false;     // LED栈低水位告警激活标志
+static bool           s_uart_stack_warn_active = false;    // UART栈低水位告警激活标志
+static bool           s_monitor_stack_warn_active = false; // Monitor栈低水位告警激活标志
 
-/* Private function prototypes -----------------------------------------------*/
-static void       System_Monitor_Log(const char* msg);
-static void       System_StopTaskIfRunning(osThreadId* task_handle);
-static bool       System_ValidateConfig(void);
-static bool       System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms);
-static void       System_LogTaskStackWatermark(const char* task_name, osThreadId task_handle);
-static uint32_t   System_GetTaskStackWarnThreshold(const char* task_name);
-static bool*      System_GetTaskStackWarnFlag(const char* task_name);
-static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id);
-static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id);
-static void       System_IWDG_Init(void);
+// ---- 私有函数声明 ----
+static void       System_Monitor_Log(const char* msg);                           // 输出监控日志
+static void       System_StopTaskIfRunning(osThreadId* task_handle);            // 停止任务(如果正在运行)
+static bool       System_ValidateConfig(void);                                  // 校验配置参数有效性
+static bool       System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms); // 等待任务被删除
+static void       System_LogTaskStackWatermark(const char* task_name, osThreadId task_handle); // 打印任务栈水位
+static uint32_t   System_GetTaskStackWarnThreshold(const char* task_name);      // 获取任务栈告警阈值
+static bool*      System_GetTaskStackWarnFlag(const char* task_name);           // 获取任务栈告警标志指针
+static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id);             // 根据ID获取任务句柄
+static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id);        // 根据ID获取默认优先级
+static void       System_IWDG_Init(void);                                       // 初始化独立看门狗
 
-/**
- * @brief  Initialize system control module
- * @param  None
- * @retval None
- */
+// ================= 公共API实现 =================
+
+// 系统初始化：时钟+看门狗+UART驱动（需在调度器启动前调用）
 void System_Init(void) {
-    // 初始化看门狗
-    System_IWDG_Init();
-    (void)UART_Driver_Init();
+    System_IWDG_Init();           // 初始化看门狗
+    (void)UART_Driver_Init();     // 初始化UART驱动
 }
 
+// 系统控制模块初始化：配置校验+系统初始化（校验失败进入安全模式）
 void System_Ctrl_Init(void) {
     if (!System_ValidateConfig()) {
         s_last_error = SYSTEM_ERR_CONFIG_INVALID;
@@ -63,7 +61,9 @@ void System_Ctrl_Init(void) {
     System_Init();
 }
 
+// 启动所有任务（LED/UART/Monitor），任一失败自动回滚
 SystemStatus_t System_StartTasks(void) {
+    // 创建LED任务
     if (s_led_task_handle == NULL) {
         s_led_task_handle =
             System_CreateTask("LED_Task", Start_LED_Task, LED_TASK_PRIORITY, LED_TASK_STACK_SIZE);
@@ -74,6 +74,7 @@ SystemStatus_t System_StartTasks(void) {
         }
     }
 
+    // 创建UART任务
     if (s_uart_task_handle == NULL) {
         s_uart_task_handle = System_CreateTask("UART_Task", Start_UART_Task, UART_TASK_PRIORITY,
                                                UART_TASK_STACK_SIZE);
@@ -85,6 +86,7 @@ SystemStatus_t System_StartTasks(void) {
         }
     }
 
+    // 创建Monitor任务
     if (s_monitor_task_handle == NULL) {
         s_monitor_task_handle = System_CreateTask("Monitor_Task", Start_Monitor_Task,
                                                   MONITOR_TASK_PRIORITY, MONITOR_TASK_STACK_SIZE);
@@ -100,6 +102,7 @@ SystemStatus_t System_StartTasks(void) {
     return s_last_error;
 }
 
+// 停止所有任务（顺序：Monitor→UART→LED，先优雅退出后强制终止）
 void System_StopTasks(void) {
     System_StopTaskIfRunning(&s_monitor_task_handle);
     System_StopTaskIfRunning(&s_uart_task_handle);
@@ -110,17 +113,21 @@ SystemStatus_t System_GetLastError(void) {
     return s_last_error;
 }
 
+// 创建FreeRTOS任务（参数校验+封装osThreadCreate）
 osThreadId System_CreateTask(const char* name, void (*taskFunc)(void const* argument),
                              osPriority priority, uint32_t stackSize) {
+    // 参数校验：拒绝NULL指针/零栈空间/无效优先级
     if (name == NULL || taskFunc == NULL || stackSize == 0U || priority == osPriorityError) {
         return NULL;
     }
 
-    osThreadDef_t thread_def = {.name = (char*)name,
-                                .pthread = taskFunc,
-                                .tpriority = priority,
-                                .instances = 1U,
-                                .stacksize = stackSize};
+    osThreadDef_t thread_def = {
+        .name = (char*)name,
+        .pthread = taskFunc,
+        .tpriority = priority,
+        .instances = 1U,
+        .stacksize = stackSize
+    };
 
     return osThreadCreate(&thread_def, NULL);
 }
@@ -131,6 +138,7 @@ void System_DestroyTask(osThreadId taskID) {
     }
 }
 
+// 获取任务栈水位（剩余最小栈空间，单位word）
 uint32_t System_GetStackWatermark(osThreadId taskID) {
     if (taskID == NULL) {
         return 0U;
@@ -138,6 +146,7 @@ uint32_t System_GetStackWatermark(osThreadId taskID) {
     return (uint32_t)uxTaskGetStackHighWaterMark(taskID);
 }
 
+// 检查并打印所有任务栈水位（旧接口，保留兼容）
 void System_CheckStackWatermark(void) {
     System_LogTaskStackWatermark("UART", s_uart_task_handle);
     System_LogTaskStackWatermark("LED", s_led_task_handle);
@@ -171,11 +180,9 @@ void System_ResetTaskPriorities(void) {
                                  System_GetDefaultPriorityById(SYSTEM_TASK_MONITOR));
 }
 
-/**
- * @brief  Log message via UART
- * @param  msg: message string to send
- * @retval None
- */
+// ================= 私有函数实现 =================
+
+// 通过UART输出日志消息（受SYSTEM_UART_TEXT_LOG_ENABLE宏控制）
 static void System_Monitor_Log(const char* msg) {
     if (msg == NULL) {
         return;
@@ -184,15 +191,17 @@ static void System_Monitor_Log(const char* msg) {
 #if (SYSTEM_UART_TEXT_LOG_ENABLE == 1U)
     (void)UART_Driver_Send((const uint8_t*)msg, (uint16_t)strlen(msg), 20U);
 #else
-    (void)msg;
+    (void)msg; // 避免未使用参数警告
 #endif
 }
 
+// 停止指定任务：调度器运行时请求优雅退出，超时后强制终止
 static void System_StopTaskIfRunning(osThreadId* task_handle) {
     if (task_handle == NULL || *task_handle == NULL) {
         return;
     }
 
+    // 调度器运行时，请求任务优雅退出
     if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
         if (task_handle == &s_led_task_handle) {
             LED_Task_RequestStop();
@@ -202,52 +211,61 @@ static void System_StopTaskIfRunning(osThreadId* task_handle) {
             Monitor_Task_RequestStop();
         }
 
+        // 等待任务退出，超时则强制终止
         if (!System_WaitTaskDeleted(*task_handle, SYSTEM_TASK_STOP_TIMEOUT_MS)) {
             System_Monitor_Log("WARN: graceful stop timeout, force terminate\r\n");
             System_DestroyTask(*task_handle);
         }
     } else {
+        // 调度器未运行，直接销毁
         System_DestroyTask(*task_handle);
     }
 
     *task_handle = NULL;
 }
 
+// 校验系统配置参数是否在合理范围内（防止配置错误导致崩溃）
 static bool System_ValidateConfig(void) {
+    // LED任务栈大小检查
     if (LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS) {
         System_Monitor_Log("CFG FAIL: LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS\r\n");
         return false;
     }
+    // UART任务栈大小检查
     if (UART_TASK_STACK_SIZE < UART_TASK_STACK_MIN_WORDS) {
         System_Monitor_Log("CFG FAIL: UART_TASK_STACK_SIZE < UART_TASK_STACK_MIN_WORDS\r\n");
         return false;
     }
+    // Monitor任务栈大小检查
     if (MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS) {
         System_Monitor_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS\r\n");
         return false;
     }
+    // Monitor任务栈应大于UART任务栈（职责更重）
     if (MONITOR_TASK_STACK_SIZE < UART_TASK_STACK_SIZE) {
         System_Monitor_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < UART_TASK_STACK_SIZE\r\n");
         return false;
     }
+    // UART接收缓冲区大小检查
     if (BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE) {
         System_Monitor_Log("CFG FAIL: BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE\r\n");
         return false;
     }
+    // Modbus缓冲区大小检查
     if (MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE) {
         System_Monitor_Log("CFG FAIL: MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE\r\n");
         return false;
     }
 
 #pragma diag_suppress 111 // 抑制"语句不可达"警告
-    // 此检查用于验证配置的有效性，即使当前配置不为0，也应该保留此检查
-    // 以防止未来修改配置时出现错误（防御性编程）
+    // 防御性编程：即使当前配置不为0，也保留此检查，防止未来修改出错
     if (BSP_UART_TX_TIMEOUT < BSP_UART_TX_TIMEOUT_MIN_MS) {
         System_Monitor_Log("CFG FAIL: BSP_UART_TX_TIMEOUT == 0\r\n");
         return false;
     }
 #pragma diag_default 111 // 恢复警告
 
+    // 任务停止超时检查
     if (SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS) {
         System_Monitor_Log(
             "CFG FAIL: SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS\r\n");
@@ -256,27 +274,28 @@ static bool System_ValidateConfig(void) {
     return true;
 }
 
+// 等待任务被删除（依赖INCLUDE_eTaskGetState宏），超时返回false
 static bool System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms) {
 #if (INCLUDE_eTaskGetState == 1)
     uint32_t elapsed = 0U;
     while (elapsed < timeout_ms) {
         eTaskState state = eTaskGetState((TaskHandle_t)task_handle);
         if (state == eDeleted || state == eInvalid) {
-            return true;
+            return true; // 任务已删除
         }
         osDelay(1U);
         elapsed++;
     }
-    return false;
+    return false; // 超时
 #else
-    /* If task state inspection is not available, just wait for the specified timeout.
-     * The caller will force terminate if this returns false. */
+    // 任务状态检查不可用时，直接等待超时时间
     (void)task_handle;
     osDelay(timeout_ms);
     return false;
 #endif
 }
 
+// 打印任务栈水位，并在低于阈值时输出告警（避免重复告警）
 static void System_LogTaskStackWatermark(const char* task_name, osThreadId task_handle) {
     uint32_t watermark = 0U;
     uint32_t warn_th = 0U;
@@ -288,6 +307,7 @@ static void System_LogTaskStackWatermark(const char* task_name, osThreadId task_
 
     warn_active = System_GetTaskStackWarnFlag(task_name);
 
+    // 任务句柄无效
     if (task_handle == NULL) {
         if (warn_active != NULL) {
             *warn_active = false;
@@ -301,12 +321,14 @@ static void System_LogTaskStackWatermark(const char* task_name, osThreadId task_
     watermark = (uint32_t)uxTaskGetStackHighWaterMark(task_handle);
     warn_th = System_GetTaskStackWarnThreshold(task_name);
 
-    /* Use %u for uint32_t on most embedded ARM GCC targets to avoid format warnings */
+    // 打印当前栈水位
     (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line), "%s Stack Watermark: %u words\r\n",
                    task_name, (unsigned int)watermark);
     System_Monitor_Log(s_stack_log_line);
 
+    // 栈水位低于告警阈值
     if ((warn_th > 0U) && (watermark <= warn_th)) {
+        // 避免重复告警
         if (warn_active != NULL && *warn_active) {
             return;
         }
@@ -317,7 +339,9 @@ static void System_LogTaskStackWatermark(const char* task_name, osThreadId task_
                        "WARN: %s stack low watermark <= %u words\r\n", task_name,
                        (unsigned int)warn_th);
         System_Monitor_Log(s_stack_log_line);
-    } else if ((warn_active != NULL) && *warn_active) {
+    }
+    // 栈水位恢复到阈值以上
+    else if ((warn_active != NULL) && *warn_active) {
         *warn_active = false;
         (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
                        "INFO: %s stack watermark recovered above %u words\r\n", task_name,
@@ -326,6 +350,7 @@ static void System_LogTaskStackWatermark(const char* task_name, osThreadId task_
     }
 }
 
+// 根据任务名获取栈告警阈值
 static uint32_t System_GetTaskStackWarnThreshold(const char* task_name) {
     if (task_name == NULL) {
         return 0U;
@@ -342,6 +367,7 @@ static uint32_t System_GetTaskStackWarnThreshold(const char* task_name) {
     return 0U;
 }
 
+// 根据任务名获取栈告警标志指针
 static bool* System_GetTaskStackWarnFlag(const char* task_name) {
     if (task_name == NULL) {
         return NULL;
@@ -358,6 +384,7 @@ static bool* System_GetTaskStackWarnFlag(const char* task_name) {
     return NULL;
 }
 
+// 根据任务ID获取任务句柄
 static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id) {
     switch (task_id) {
     case SYSTEM_TASK_LED:
@@ -371,6 +398,7 @@ static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id) {
     }
 }
 
+// 根据任务ID获取默认优先级
 static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id) {
     switch (task_id) {
     case SYSTEM_TASK_LED:
@@ -384,36 +412,28 @@ static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id) {
     }
 }
 
-/**
- * @brief  Initialize IWDG (Independent Watchdog)
- * @param  None
- * @retval None
- */
+// 初始化独立看门狗（IWDG），LSI约40KHz，超时≈2秒
 static void System_IWDG_Init(void) {
 #if (SYSTEM_USE_IWDG == 1U)
     hiwdg.Instance = IWDG;
-    hiwdg.Init.Prescaler = IWDG_PRESCALER_256; // 预分频系数256，假设LSI 40KHz，则计数频率约156Hz
-    hiwdg.Init.Reload = IWDG_RELOAD_VALUE;     // 重装载值，约2秒超时
+    // 预分频256，计数频率≈156Hz
+    hiwdg.Init.Prescaler = IWDG_PRESCALER_256;
+    // 重装载值312，超时≈2秒
+    hiwdg.Init.Reload = IWDG_RELOAD_VALUE;
 
     if (HAL_IWDG_Init(&hiwdg) != HAL_OK) {
-        // 看门狗初始化失败，记录错误
-        ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
+        ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__); // 初始化失败，记录错误
     } else {
-        // 看门狗初始化成功
         System_Monitor_Log("IWDG initialized successfully\r\n");
     }
 #endif
 }
 
-/**
- * @brief  Feed IWDG (Refresh Independent Watchdog)
- * @param  None
- * @retval None
- */
+// 喂独立看门狗（刷新计数器）
 void System_IWDG_Feed(void) {
 #if (SYSTEM_USE_IWDG == 1U)
     HAL_IWDG_Refresh(&hiwdg);
 #else
-    /* IWDG disabled, do nothing */
+    // 看门狗禁用，什么都不做
 #endif
 }

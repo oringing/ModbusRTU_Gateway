@@ -2,7 +2,6 @@
 #include "led.h"
 
 void BSP_LED_Init(void) {
-    // 初始化 PC13 为输出模式
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     __HAL_RCC_GPIOC_CLK_ENABLE();
 
@@ -12,7 +11,7 @@ void BSP_LED_Init(void) {
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(LED_C13_GPIO_Port, &GPIO_InitStruct);
 
-    // 初始状态：关闭 LED
+    // 初始状态：熄灭LED（PC13低电平点亮）
     HAL_GPIO_WritePin(LED_C13_GPIO_Port, LED_C13_Pin, GPIO_PIN_SET);
 }
 

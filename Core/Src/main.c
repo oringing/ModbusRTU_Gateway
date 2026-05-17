@@ -18,39 +18,46 @@
 
 void SystemClock_Config(void);
 
+// 系统启动入口：硬件初始化→模块初始化→任务创建→启动调度器
 int main(void) {
-    /* MCU Configuration--------------------------------------------------------*/
+    // 1. HAL库初始化（时钟、NVIC、DMA基础配置）
     HAL_Init();
-    /* Configure the system clock */
+    
+    // 2. 系统时钟配置（HSE+PLL，72MHz主频）
     SystemClock_Config();
 
     /* USER CODE BEGIN Init */
+    // 3. BSP层硬件初始化（LED/UART/舵机PWM）
     BSP_LED_Init();
     BSP_UART_Init();
     BSP_Servo_Init();
 
+    // 4. 协议层初始化（Modbus寄存器+回调）
     Modbus_Init();
+    
+    // 5. 系统控制层初始化（配置校验+看门狗）
     System_Ctrl_Init();
 
-    /* Create all application tasks via system control module */
+    // 6. 创建所有应用任务（LED/UART/Monitor）
     if (System_StartTasks() != SYSTEM_OK) {
         ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
-        Error_Handler();
+        Error_Handler(); // 任务创建失败，进入安全模式
     }
 
-    /* Start scheduler */
+    // 7. 启动FreeRTOS调度器（永不返回）
     osKernelStart();
     /* USER CODE END Init */
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
+ * @brief   系统时钟配置（HSE 8MHz → PLL 9倍频 → 72MHz系统时钟）
+ * @note    时钟树配置：SYSCLK=72MHz, HCLK=72MHz, PCLK1=36MHz, PCLK2=72MHz
  */
 void SystemClock_Config(void) {
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
+    // 配置振荡器：HSE 8MHz + PLL 9倍频
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
     RCC_OscInitStruct.HSEState = RCC_HSE_ON;
     RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
@@ -62,6 +69,7 @@ void SystemClock_Config(void) {
         Error_Handler();
     }
 
+    // 配置时钟分频：AHB=72MHz, APB1=36MHz, APB2=72MHz
     RCC_ClkInitStruct.ClockType =
         RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;

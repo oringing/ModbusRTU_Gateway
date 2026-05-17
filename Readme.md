@@ -1,6 +1,6 @@
 # Modbus RTU 网关（STM32F103C8T6）
 
-> **版本**: v1.7.0 | **许可证**: MIT | **最后更新**: 2026-05-15  
+> **版本**: v1.8.0 | **许可证**: MIT | **最后更新**: 2026-05-17  
 > 基于 STM32F1 + FreeRTOS 的工业级 Modbus RTU 协议从机网关，具备高稳定性 UART 接收链、故障自恢复机制、双路异构舵机控制与系统心跳监控。
 
 ## 🔍 技术亮点
@@ -34,6 +34,12 @@
   - `128~255`：正转调速（值越大正转越快）
 - **脉宽级精确控制**：BSP 层提供微秒级脉宽控制接口，消除占空比切换毛刺影响
 
+### ✅ 代码工程化规范
+
+- **魔法数字清理**：消除全项目硬编码索引与业务阈值，22 个 Modbus 帧索引宏分组管理，18 个栈/缓冲区校验阈值提取为宏
+- **注释规范化**：全项目 25 个文件完成 L1-L4 分级注释（公共 API Doxygen 注释 + static 函数设计意图注释 + 物理参数单位说明）
+- **代码格式化**：基于 Linux 内核风格 + MISRA 约束的 .clang-format 配置，4 空格缩进、K&R 大括号风格、100 字符列宽限制
+
 ## ️ 技术栈
 
 - **MCU**: STM32F103C8T6 (ARM Cortex-M3, 72MHz, 64KB Flash, 20KB RAM)
@@ -41,7 +47,7 @@
 - **通信协议**: Modbus RTU over RS485 (MAX485, 自动流向控制型)
 - **固件库**: STM32 HAL (F1)
 - **工具链**: STM32CubeMX + Keil MDK v5 + VS Code
-- **代码规范**: Doxygen 注释 + .clang-format 格式化
+- **代码规范**:注释分级规范 v2.2 + .clang-format（Linux 内核风格）
 
 ## 📊 性能指标
 
@@ -225,9 +231,9 @@ STM32F103从机     MAX485模块（从机端）    MAX485模块（主机端）  
 | `MONITOR_TASK_STACK_SIZE` | 165 words | 实测峰值 74 words，预留 1.3 倍剩余量 |
 | `STACK_CHECK_INTERVAL_SEC` | 60 | 栈水位检查间隔（单位：秒） |
 | `HEARTBEAT_INTERVAL_MS` | 1000 | 心跳翻转间隔（单位：ms） |
-| `IWDG_FEED_INTERVAL_MS` | 500 | 看门狗喂狗间隔（单位：ms） |
+| `IWDG_FEED_INTERVAL_MS` | 500 | 看门狗喂狗间隔（单位：ms，须<2秒超时） |
 | `MONITOR_TASK_BASE_DELAY` | 10 | 监控任务基础循环周期（单位：ms） |
-| `SYSTEM_UART_TEXT_LOG_ENABLE` | 1 | 开启 USART1 ASCII 日志（用于调试阶段） |
+| `SYSTEM_UART_TEXT_LOG_ENABLE` | 0 | USART1 ASCII 日志开关（0=生产环境关闭，1=调试环境开启） |
 | `SYSTEM_TASK_STOP_TIMEOUT_MS` | 300 | 任务退出等待超时（单位：ms） |
 
 ***
@@ -238,7 +244,13 @@ STM32F103从机     MAX485模块（从机端）    MAX485模块（主机端）  
 
 - [docs/问题记录.md](docs/问题记录.md)：当前已知问题清单与改进计划
 - [docs/日志记录.md](docs/日志记录.md)：开发里程碑记录与技术决策
+- [docs/协议说明.md](docs/协议说明.md)：Modbus RTU 协议实现规范与寄存器映射
 
+### 工程规范
+
+- [CODING_STYLE.md](CODING_STYLE.md)：嵌入式 C 代码工程规范（格式化/注释/命名/架构）
+- [docs/ignore_docs/SKILLS/embedded code comment skill.md](docs/ignore_docs/SKILLS/embedded%20code%20comment%20skill.md)：AI 专用注释规则（v2.2，强制执行型）
+- [.clang-format](.clang-format)：代码格式化配置（Linux 内核风格 + MISRA 约束）
 
 ***
 
@@ -372,17 +384,21 @@ ERR[类型] 文件:行号
 
 ## 🎯 下一步演进方向
 
-### 已完成功能（v1.7）
+### 已完成功能（v1.8）
 - ✅ Modbus RTU 从机（0x03/0x06 功能码）
 - ✅ UART 接收链防护与错误恢复机制
 - ✅ 系统心跳与看门狗自恢复
 - ✅ 双路异构舵机控制（180°/360° SG90）
-- ✅ 代码规范化（消除魔法数字、Doxygen 注释、.clang-format）
+- ✅ 代码规范化（消除魔法数字、配置文件职责分离、Doxygen 注释分级、.clang-format）
 
-### 计划中功能（v1.8+）
-- [ ] 接入 AHT20（温湿度）+ BMP280（气压）传感器，实现 I2C 数据采集闭环
+### 进行中功能（v1.8）
+- 🔄 接入 AHT20（温湿度）+ BMP280（气压）传感器，实现 I2C 数据采集闭环
+
+### 计划中功能（v1.9+）
 - [ ] 接入电位器/编码器，实现本地手动控制模式
 - [ ] 扩展 Modbus 主站功能，实现双 MCU 主从架构（STM32 + ESP32）
 - [ ] 增加 Wi-Fi/MQTT 网络协议栈，实现云端数据上报
 - [ ] 完善长稳测试（24h+ 连续运行）与边界值压力测试
 - [ ] 增加 OTA 固件升级功能
+
+***
