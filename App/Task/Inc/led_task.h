@@ -4,6 +4,8 @@
 
 #include "cmsis_os.h"
 
+#define LED_TASK_TOGGLE_INTERVAL_MS      500U
+
 #ifdef __cplusplus
 extern "C" {
 #endif
