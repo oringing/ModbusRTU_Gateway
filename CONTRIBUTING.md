@@ -29,7 +29,8 @@ git checkout -b fix/issue-description
 ```
 
 ### 3. 编码规范
-- 遵循项目现有的代码风格（参考 `.clang-format`）
+- 代码格式：项目根目录有 `.clang-format` 配置文件，提交前请用 clang-format 格式化
+- 注释规范：**必须**遵循 [CODING_STYLE.md](CODING_STYLE.md) 中的注释规范，提交前对照自查清单逐项检查
 - 函数命名使用 `PascalCase`，变量使用 `snake_case`
 - 所有公共 API 必须添加 Doxygen 注释
 - 新增功能需更新相关文档
@@ -37,7 +38,6 @@ git checkout -b fix/issue-description
 ### 4. 测试要求
 - 确保代码在 STM32F103C8T6 + MAX485 环境下编译通过
 - 提供测试用例或验证步骤
-- 运行至少 30 分钟压力测试（100ms/帧）
 
 ### 5. 提交规范
 ```bash
@@ -76,7 +76,7 @@ git push origin feature/your-feature-name
 ## ❓ 提问之前
 
 1. 阅读 [Readme.md](Readme.md)
-2. 查阅 [docs/](docs/) 目录下的技术文档
+2. 查阅 [docs/](docs/) 目录下的相关文档
 3. 搜索已关闭的 Issue
 
 ## 🎯 优先处理的 Issue
@@ -93,3 +93,4 @@ git push origin feature/your-feature-name
 ---
 
 **注意**：本项目采用 MIT 许可证，贡献代码即表示你同意以该许可证发布你的贡献。
+```

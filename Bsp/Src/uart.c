@@ -2,50 +2,63 @@
 #include "uart.h"
 #include "cmsis_os.h"
 #include "error_handler.h"
-#include "led.h" // 新增：包含 LED 驱动头文件
+#include "led.h"
 #include "system_config.h"
 #include <string.h>
 
-// 内部私有变量
+// 私有变量：UART句柄及双缓冲区
 static UART_HandleTypeDef huart1;
-static uint8_t            s_rx_buffer_a[BSP_UART_RX_BUF_SIZE];
-static uint8_t            s_rx_buffer_b[BSP_UART_RX_BUF_SIZE];
-static uint8_t*           s_active_rx_buffer = s_rx_buffer_a;
-static uint8_t*           s_ready_rx_buffer = s_rx_buffer_b;
-static volatile uint16_t  rx_count = 0;
-static volatile uint16_t  s_ready_frame_len = 0U;
-static volatile bool      frame_ready = false;
-static volatile bool      s_rx_need_recovery = false;
-static volatile uint32_t  s_uart_error_count = 0U;
-static volatile uint32_t  s_uart_rx_overflow_count = 0U;
-static volatile uint32_t  s_uart_ore_count = 0U;
-static volatile uint32_t  s_uart_fe_count = 0U;
-static volatile uint32_t  s_uart_ne_count = 0U;
-static volatile uint32_t  s_uart_pe_count = 0U;
-static volatile uint32_t  s_uart_error_streak = 0U;
-static volatile uint32_t  s_uart_irq_reentry_count = 0U;
-static volatile uint8_t   s_uart_irq_busy = 0U;
-// P1-004: 错误分级处理计数器
-static volatile uint32_t s_uart_fe_streak = 0U; // FE/NE 连续错误计数
-static volatile uint32_t s_uart_pe_streak = 0U; // PE 连续错误计数
-static volatile uint8_t  s_uart_tx_in_progress = 0U;
-static uint32_t          s_last_error_log_tick = 0U;
-static uint32_t          s_last_recover_try_tick = 0U;
-static uint32_t          s_last_recover_fail_log_tick = 0U;
-static uint32_t          s_last_post_frame_restart_log_tick = 0U;
+static uint8_t            s_rx_buffer_a[BSP_UART_RX_BUF_SIZE]; // 接收缓冲区A
+static uint8_t            s_rx_buffer_b[BSP_UART_RX_BUF_SIZE]; // 接收缓冲区B
+static uint8_t*           s_active_rx_buffer = s_rx_buffer_a;  // 当前活动缓冲区，仅ISR写入
+static uint8_t*           s_ready_rx_buffer = s_rx_buffer_b;   // 已就绪缓冲区，任务读取后交换
+static volatile uint16_t  rx_count = 0;                        // 当前帧接收字节计数
+static volatile uint16_t  s_ready_frame_len = 0U;              // 已就绪帧长度
+static volatile bool      frame_ready = false;                 // 帧就绪标志，受关中断保护
+static volatile bool      s_rx_need_recovery = false;          // 恢复请求标志
+static volatile uint32_t  s_uart_error_count = 0U;             // 总错误计数
+static volatile uint32_t  s_uart_rx_overflow_count = 0U;       // 接收溢出计数
+static volatile uint32_t  s_uart_ore_count = 0U;               // ORE错误计数
+static volatile uint32_t  s_uart_fe_count = 0U;                // FE错误计数
+static volatile uint32_t  s_uart_ne_count = 0U;                // NE错误计数
+static volatile uint32_t  s_uart_pe_count = 0U;                // PE错误计数
+static volatile uint32_t  s_uart_error_streak = 0U;            // 连续错误计数
+static volatile uint32_t  s_uart_irq_reentry_count = 0U;       // IRQ重入计数
+static volatile uint8_t   s_uart_irq_busy = 0U;                // IRQ忙标志，防止重入
+static volatile uint32_t  s_uart_fe_streak = 0U;               // FE/NE连续错误计数
+static volatile uint32_t  s_uart_pe_streak = 0U;               // PE连续错误计数
+static volatile uint8_t   s_uart_tx_in_progress = 0U;          // TX进行中标志，用于过滤回显
+static uint32_t           s_last_error_log_tick = 0U;          // 上次错误日志时间戳
+static uint32_t           s_last_recover_try_tick = 0U;        // 上次恢复尝试时间戳
+static uint32_t           s_last_recover_fail_log_tick = 0U;   // 上次恢复失败日志时间戳
+static uint32_t           s_last_post_frame_restart_log_tick = 0U; // 上次帧后重启日志时间戳
 
-static uint32_t s_recovery_retry_count = 0U;
-static bool     s_uart_hw_fault = false;
-static uint32_t s_success_rx_count = 0U;
+static uint32_t s_recovery_retry_count = 0U;  // 恢复重试计数
+static bool     s_uart_hw_fault = false;      // 硬件故障标志
+static uint32_t s_success_rx_count = 0U;      // 连续成功接收计数
 
+// 内部函数声明
+static HAL_StatusTypeDef BSP_UART_StartReceiveByteRaw(void);
+static bool BSP_UART_StartReceiveByte(void);
+static bool BSP_UART_RestartReceiveFromBufferHead(HAL_StatusTypeDef* restart_status);
+static bool BSP_UART_ResetStateAndRestartReceive(HAL_StatusTypeDef* restart_status);
+static void BSP_UART_RequestRecoveryFromISR(void);
+static void BSP_UART_FinalizeFrameFromISR(void);
+static bool BSP_UART_ShouldThrottleLog(void);
+static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef* huart);
+static void BSP_UART_RecoveryIfNeeded(void);
+
+// 启动单字节接收（裸接口，无状态检查）
 static HAL_StatusTypeDef BSP_UART_StartReceiveByteRaw(void) {
     return HAL_UART_Receive_IT(&huart1, &s_active_rx_buffer[rx_count], 1U);
 }
 
+// 启动单字节接收（带返回值转换）
 static bool BSP_UART_StartReceiveByte(void) {
     return (BSP_UART_StartReceiveByteRaw() == HAL_OK);
 }
 
+// 从缓冲区头部重启接收（调用者需先完成缓冲区交换）
 static bool BSP_UART_RestartReceiveFromBufferHead(HAL_StatusTypeDef* restart_status) {
     HAL_StatusTypeDef st = HAL_UART_AbortReceive(&huart1);
     if ((st != HAL_OK) && (st != HAL_BUSY)) {
@@ -55,8 +68,6 @@ static bool BSP_UART_RestartReceiveFromBufferHead(HAL_StatusTypeDef* restart_sta
         return false;
     }
 
-    /* Caller has already swapped buffers and cleared the frame state.
-     * This helper should only re-arm RX on the new active buffer head. */
     st = BSP_UART_StartReceiveByteRaw();
     if (restart_status != NULL) {
         *restart_status = st;
@@ -64,6 +75,7 @@ static bool BSP_UART_RestartReceiveFromBufferHead(HAL_StatusTypeDef* restart_sta
     return (st == HAL_OK);
 }
 
+// 重置状态并重启接收（清零计数器+关闭中断保护）
 static bool BSP_UART_ResetStateAndRestartReceive(HAL_StatusTypeDef* restart_status) {
     __disable_irq();
     rx_count = 0U;
@@ -74,10 +86,12 @@ static bool BSP_UART_ResetStateAndRestartReceive(HAL_StatusTypeDef* restart_stat
     return BSP_UART_RestartReceiveFromBufferHead(restart_status);
 }
 
+// 从中断上下文请求恢复
 static void BSP_UART_RequestRecoveryFromISR(void) {
     s_rx_need_recovery = true;
 }
 
+// IDLE中断触发：封帧并交换缓冲区
 static void BSP_UART_FinalizeFrameFromISR(void) {
     HAL_StatusTypeDef restart_status = HAL_OK;
     uint8_t*          sealed_buffer = NULL;
@@ -87,15 +101,14 @@ static void BSP_UART_FinalizeFrameFromISR(void) {
         return;
     }
 
-    /* Only one ready slot exists. If the previous frame is still pending when
-     * another IDLE arrives, drop the current capture and recover the RX chain
-     * rather than mixing completed frames. */
+    // 防止帧覆盖：如果上一帧未读取，丢弃当前帧并请求恢复
     if (frame_ready) {
         s_uart_rx_overflow_count++;
         BSP_UART_RequestRecoveryFromISR();
         return;
     }
 
+    // 交换双缓冲区
     sealed_buffer = s_active_rx_buffer;
     new_active_buffer = s_ready_rx_buffer;
     s_active_rx_buffer = new_active_buffer;
@@ -104,10 +117,10 @@ static void BSP_UART_FinalizeFrameFromISR(void) {
     rx_count = 0U;
     frame_ready = true;
 
-    /* 如果之前判定为硬件故障，现在收到了完整帧，说明线路恢复了 */
+    // 检测硬件故障恢复：连续5次成功接收则清除故障标志
     if (s_uart_hw_fault) {
         s_success_rx_count++;
-        if (s_success_rx_count >= 5U) { // 连续成功接收 5 次，认为故障已消除
+        if (s_success_rx_count >= UART_SUCCESS_RX_RECOVER_COUNT) {
             s_uart_hw_fault = false;
             s_recovery_retry_count = 0U;
             s_success_rx_count = 0U;
@@ -116,6 +129,7 @@ static void BSP_UART_FinalizeFrameFromISR(void) {
         s_success_rx_count = 0U;
     }
 
+    // 重启接收链，失败则标记需要恢复
     if (!BSP_UART_RestartReceiveFromBufferHead(&restart_status)) {
         s_rx_need_recovery = true;
         if ((restart_status != HAL_BUSY) &&
@@ -126,6 +140,7 @@ static void BSP_UART_FinalizeFrameFromISR(void) {
     }
 }
 
+// 日志限流：1秒内只记录一次错误
 static bool BSP_UART_ShouldThrottleLog(void) {
     uint32_t now = HAL_GetTick();
     if ((now - s_last_error_log_tick) >= UART_ERROR_LOG_THROTTLE_MS) {
@@ -135,6 +150,7 @@ static bool BSP_UART_ShouldThrottleLog(void) {
     return true;
 }
 
+// 错误分级处理：根据错误类型决定是否立即恢复
 static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef* huart) {
     uint32_t error_code = 0U;
     bool     has_error = false;
@@ -152,15 +168,14 @@ static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef* huart) {
         return;
     }
 
-    /* P1-004: 错误分级处理逻辑 */
-    // 1. ORE（溢出错误）：数据接收过快，缓冲区溢出，立即恢复
+    // ORE（溢出错误）：数据接收过快，立即恢复
     if ((error_code & HAL_UART_ERROR_ORE) != 0U) {
         s_uart_ore_count++;
         has_error = true;
         need_immediate_recover = true;
     }
 
-    // 2. FE（帧错误）/ NE（噪声错误）：连续 3 次触发恢复
+    // FE/NE（帧/噪声错误）：连续3次触发恢复
     if ((error_code & (HAL_UART_ERROR_FE | HAL_UART_ERROR_NE)) != 0U) {
         if ((error_code & HAL_UART_ERROR_FE) != 0U) {
             s_uart_fe_count++;
@@ -171,19 +186,17 @@ static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef* huart) {
         s_uart_fe_streak++;
         has_error = true;
 
-        // 连续错误达到阈值，触发恢复
         if (s_uart_fe_streak >= UART_FE_RECOVER_STREAK_TH) {
             need_immediate_recover = true;
         }
     }
 
-    // 3. PE（校验错误）：连续 5 次触发恢复
+    // PE（校验错误）：连续5次触发恢复
     if ((error_code & HAL_UART_ERROR_PE) != 0U) {
         s_uart_pe_count++;
         s_uart_pe_streak++;
         has_error = true;
 
-        // 连续错误达到阈值，触发恢复
         if (s_uart_pe_streak >= UART_PE_RECOVER_STREAK_TH) {
             need_immediate_recover = true;
         }
@@ -197,18 +210,21 @@ static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef* huart) {
     s_uart_error_count++;
     s_uart_error_streak++;
 
-    /* Clear PE/FE/NE/ORE chain on F1 series before re-arming RX. */
+    // STM32F1系列需手动清除错误标志
     __HAL_UART_CLEAR_PEFLAG(huart);
 
+    // 立即恢复或达到总阈值则触发恢复
     if (need_immediate_recover || (s_uart_error_streak >= UART_ERROR_STREAK_RECOVER_TH)) {
         BSP_UART_RequestRecoveryFromISR();
     }
 
+    // 限流记录错误日志
     if (!BSP_UART_ShouldThrottleLog()) {
         ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
     }
 }
 
+// 任务层周期性调用：执行恢复逻辑
 static void BSP_UART_RecoveryIfNeeded(void) {
     HAL_StatusTypeDef restart_status = HAL_OK;
 
@@ -216,19 +232,17 @@ static void BSP_UART_RecoveryIfNeeded(void) {
         return;
     }
 
-    /* Keep the sealed frame available to upper layers first. If recovery was
-     * requested after that frame was published, defer the reset until the task
-     * has drained the ready buffer. */
+    // 如果帧已就绪但未读取，延迟恢复直到任务取走数据
     if (frame_ready) {
         return;
     }
 
-    /* 如果已经判定为硬件故障，则停止自动恢复尝试 */
+    // 硬件故障状态下停止自动恢复
     if (s_uart_hw_fault) {
         return;
     }
 
-    /* Avoid hot-loop retries in task polling path. */
+    // 防止热循环：最小间隔5ms
     if ((HAL_GetTick() - s_last_recover_try_tick) < 5U) {
         return;
     }
@@ -239,7 +253,7 @@ static void BSP_UART_RecoveryIfNeeded(void) {
     if (!BSP_UART_ResetStateAndRestartReceive(&restart_status)) {
         s_recovery_retry_count++;
 
-        /* HAL_BUSY is expected transiently when RX state has not fully released. */
+        // HAL_BUSY是暂时性状态，不计入错误
         if (restart_status != HAL_BUSY) {
             s_uart_error_count++;
             if ((HAL_GetTick() - s_last_recover_fail_log_tick) >= 1000U) {
@@ -248,54 +262,49 @@ static void BSP_UART_RecoveryIfNeeded(void) {
             }
         }
 
-        /* 检查是否超过最大重试次数 */
+        // 超过最大重试次数则判定为硬件故障
         if (s_recovery_retry_count >= UART_MAX_RECOVERY_RETRY) {
             s_uart_hw_fault = true;
-            s_rx_need_recovery = false; // 清除请求，防止死循环
+            s_rx_need_recovery = false;
 
-            // === 新增：故障反馈机制 ===
-            ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__); // 1. 尝试通过 UART 发送日志
-
-            // 2. LED 故障指示：快速闪烁，表示 UART 硬件故障
+            // 故障反馈：记录日志 + LED快速闪烁
+            ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
             for (uint32_t i = 0U; i < UART_FAULT_BLINK_COUNT; i++) {
                 BSP_LED_On();
                 HAL_Delay(UART_FAULT_BLINK_INTERVAL_MS);
                 BSP_LED_Off();
                 HAL_Delay(UART_FAULT_BLINK_INTERVAL_MS);
             }
-            // =========================
         } else {
-            s_rx_need_recovery = true; // 没超限，继续标记需要恢复
+            s_rx_need_recovery = true; // 未超限，继续标记需要恢复
         }
     } else {
-        /* 恢复成功，重置计数器 */
+        // 恢复成功，重置计数器
         s_recovery_retry_count = 0U;
     }
 }
 
 void BSP_UART_Init(void) {
-    // 1. 使能时钟
+    // 使能时钟
     __HAL_RCC_USART1_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
 
-    // 2. 配置 GPIO (分开配置 TX 和 RX，确保 RX 强上拉)
+    // 配置GPIO：TX推挽输出，RX强上拉输入（抗干扰）
     GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-    // --- 配置 TX (PA9) ---
     GPIO_InitStruct.Pin = BSP_UART1_TX_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(BSP_UART_GPIO_PORT, &GPIO_InitStruct);
 
-    // --- 配置 RX (PA10) ---
     GPIO_InitStruct.Pin = BSP_UART1_RX_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT; // 显式设为输入
-    GPIO_InitStruct.Pull = GPIO_PULLUP;     // 强上拉，对抗干扰
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(BSP_UART_GPIO_PORT, &GPIO_InitStruct);
 
-    // 3. 配置 UART
+    // 配置UART参数
     huart1.Instance = BSP_UART_INSTANCE;
     huart1.Init.BaudRate = BSP_UART_BAUDRATE;
     huart1.Init.WordLength = UART_WORDLENGTH_8B;
@@ -309,13 +318,14 @@ void BSP_UART_Init(void) {
         Error_Handler();
     }
 
-    /* 新增：开启 USART1 NVIC */
+    // 开启NVIC中断（优先级5）
     HAL_NVIC_SetPriority(USART1_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(USART1_IRQn);
-    // 4. 开启空闲中断 (IDLE Interrupt) - 关键步骤
+
+    // 开启IDLE中断
     __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
 
-    // 5. 启动首次接收（触发后续的中断链）
+    // 启动首次接收
     rx_count = 0U;
     s_ready_frame_len = 0U;
     frame_ready = false;
@@ -330,8 +340,7 @@ void BSP_UART_Init(void) {
 bool BSP_UART_Send(const uint8_t* data, uint16_t len, uint32_t timeout) {
     bool status = false;
     if ((data != NULL) && (len > 0U)) {
-        /* Auto-direction RS485 modules may loop back TX bytes into RX path.
-         * Mark TX window to drop self-echo bytes in RX callback. */
+        // 标记TX窗口，过滤RS485回显字节
         s_uart_tx_in_progress = 1U;
         status = (HAL_UART_Transmit(&huart1, (uint8_t*)data, len, timeout) == HAL_OK);
         s_uart_tx_in_progress = 0U;
@@ -345,10 +354,10 @@ void BSP_UART_PrintString(const char* str) {
     }
 }
 
-// 串口接收中断回调
+// RX完成回调：逐字节接收并检测溢出
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
     if (huart->Instance == USART1) {
-        /* Drop local TX echo bytes to avoid "request/echo" alternating frames. */
+        // 过滤TX回显字节（RS485半双工场景）
         if (s_uart_tx_in_progress != 0U) {
             if (HAL_UART_Receive_IT(huart, &s_active_rx_buffer[rx_count], 1U) != HAL_OK) {
                 BSP_UART_RequestRecoveryFromISR();
@@ -356,6 +365,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
             return;
         }
 
+        // 正常接收：递增计数并启动下一字节
         if (rx_count < BSP_UART_RX_BUF_SIZE) {
             rx_count++;
             if (rx_count < BSP_UART_RX_BUF_SIZE) {
@@ -368,6 +378,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
                     }
                 }
             } else {
+                // 缓冲区溢出
                 s_uart_rx_overflow_count++;
                 BSP_UART_RequestRecoveryFromISR();
             }
@@ -378,6 +389,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef* huart) {
     }
 }
 
+// 错误回调：分类处理FE/NE/PE/ORE
 void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart) {
     if (huart == NULL || huart->Instance != USART1) {
         return;
@@ -385,12 +397,11 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart) {
 
     BSP_UART_ClassifyAndHandleErrorsFromISR(huart);
 }
-// 串口空闲中断处理（在 stm32f1xx_it.c 中调用，或者在这里处理）
-// 注意：HAL 库的空闲中断通常需要用户在 IT_Handler 中清除标志位并调用此逻辑
+
+// IDLE中断入口：关中断保护原子性操作
 void BSP_UART_IRQHandler(void) {
-    /* Guard the whole USART1 path, not just the HAL call, so IDLE sealing and
-     * HAL RX/error handling always run as one consistent critical section. */
-    __disable_irq(); // 关中断确保原子性
+    // 防止IRQ重入
+    __disable_irq();
     if (s_uart_irq_busy != 0U) {
         s_uart_irq_reentry_count++;
         __enable_irq();
@@ -405,11 +416,10 @@ void BSP_UART_IRQHandler(void) {
     s_uart_irq_busy = 1U;
     __enable_irq();
 
+    // 分发到HAL库处理RX/TX回调
     HAL_UART_IRQHandler(&huart1);
 
-    /* Let HAL drain the last RXNE byte first, then seal the frame on IDLE and
-     * immediately re-arm reception on the other buffer to shrink the gap
-     * between two back-to-back master requests. */
+    // IDLE标志检测：封帧并立即重启接收
     if (__HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE) != RESET) {
         __HAL_UART_CLEAR_IDLEFLAG(&huart1);
         BSP_UART_FinalizeFrameFromISR();
@@ -429,11 +439,12 @@ uint16_t BSP_UART_ReadFrame(uint8_t* buffer, uint16_t max_len) {
 
     BSP_UART_RecoveryIfNeeded();
 
-    // 增强参数验证
+    // 参数验证
     if (buffer == NULL || max_len == 0U || max_len > BSP_UART_RX_BUF_SIZE) {
         return 0U;
     }
 
+    // 关中断保护原子性读取
     __disable_irq();
     if (frame_ready) {
         snapshot_len = s_ready_frame_len;
@@ -443,9 +454,8 @@ uint16_t BSP_UART_ReadFrame(uint8_t* buffer, uint16_t max_len) {
     __enable_irq();
 
     if (snapshot_len > 0U) {
-        // 确保不会超出实际可用数据和目标缓冲区大小
+        // 防止越界：取最小值
         copy_len = (snapshot_len < max_len) ? snapshot_len : max_len;
-        // 进一步检查防止内存越界
         if (copy_len > BSP_UART_RX_BUF_SIZE) {
             copy_len = BSP_UART_RX_BUF_SIZE;
         }
