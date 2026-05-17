@@ -239,42 +239,42 @@ static void System_StopTaskIfRunning(osThreadId *task_handle)
 
 static bool System_ValidateConfig(void)
 {
-    if (LED_TASK_STACK_SIZE < 48U) {
-        System_Monitor_Log("CFG FAIL: LED_TASK_STACK_SIZE < 48\r\n");
+    if (LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS) {
+        System_Monitor_Log("CFG FAIL: LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS\r\n");
         return false;
     }
-    if (UART_TASK_STACK_SIZE < 96U) {
-        System_Monitor_Log("CFG FAIL: UART_TASK_STACK_SIZE < 96\r\n");
+    if (UART_TASK_STACK_SIZE < UART_TASK_STACK_MIN_WORDS) {
+        System_Monitor_Log("CFG FAIL: UART_TASK_STACK_SIZE < UART_TASK_STACK_MIN_WORDS\r\n");
         return false;
     }
-    if (MONITOR_TASK_STACK_SIZE < 128U) {
-        System_Monitor_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < 192\r\n");
+    if (MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS) {
+        System_Monitor_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS\r\n");
         return false;
     }
     if (MONITOR_TASK_STACK_SIZE < UART_TASK_STACK_SIZE) {
         System_Monitor_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < UART_TASK_STACK_SIZE\r\n");
         return false;
     }
-    if (BSP_UART_RX_BUF_SIZE < 256U) {
-        System_Monitor_Log("CFG FAIL: BSP_UART_RX_BUF_SIZE < 256\r\n");
+    if (BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE) {
+        System_Monitor_Log("CFG FAIL: BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE\r\n");
         return false;
     }
-    if (MODBUS_BUFFER_SIZE < 256U) {
-        System_Monitor_Log("CFG FAIL: MODBUS_BUFFER_SIZE < 256\r\n");
+    if (MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE) {
+        System_Monitor_Log("CFG FAIL: MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE\r\n");
         return false;
     }
     
 #pragma diag_suppress 111  // 抑制"语句不可达"警告
     // 此检查用于验证配置的有效性，即使当前配置不为0，也应该保留此检查
     // 以防止未来修改配置时出现错误（防御性编程）
-    if (BSP_UART_TX_TIMEOUT == 0U) {
+    if (BSP_UART_TX_TIMEOUT < BSP_UART_TX_TIMEOUT_MIN_MS) {
         System_Monitor_Log("CFG FAIL: BSP_UART_TX_TIMEOUT == 0\r\n");
         return false;
     }
 #pragma diag_default 111   // 恢复警告
     
-    if (SYSTEM_TASK_STOP_TIMEOUT_MS < 100U) {
-        System_Monitor_Log("CFG FAIL: SYSTEM_TASK_STOP_TIMEOUT_MS < 100\r\n");
+    if (SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS) {
+        System_Monitor_Log("CFG FAIL: SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS\r\n");
         return false;
     }
     return true;

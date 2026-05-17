@@ -17,7 +17,7 @@ void Start_LED_Task(void const * argument)
     while (s_led_task_stop == 0U)
     {
         BSP_LED_Toggle();
-        osDelay(500);
+        osDelay(LED_TASK_TOGGLE_INTERVAL_MS);
     }
     BSP_LED_Off();
     osThreadTerminate(NULL);
