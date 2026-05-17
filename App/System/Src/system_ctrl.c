@@ -24,7 +24,7 @@ static osThreadId s_led_task_handle = NULL;
 static osThreadId s_uart_task_handle = NULL;
 static osThreadId s_monitor_task_handle = NULL;
 static SystemStatus_t s_last_error = SYSTEM_OK;
-static char s_stack_log_line[80];
+static char s_stack_log_line[SYSTEM_STACK_LOG_BUF_SIZE];
 static bool s_led_stack_warn_active = false;
 static bool s_uart_stack_warn_active = false;
 static bool s_monitor_stack_warn_active = false;

@@ -7,8 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ERROR_TYPE_COUNT ((uint32_t)ERROR_MAX)
-
 static volatile ErrorType s_last_error = ERROR_NONE;
 static volatile uint32_t s_error_counter[ERROR_TYPE_COUNT];
 
@@ -19,7 +17,7 @@ static void Error_SendText(const char *text)
     }
 
 #if (SYSTEM_UART_TEXT_LOG_ENABLE == 1U)
-    (void)UART_Driver_Send((const uint8_t *)text, (uint16_t)strlen(text), 20U);
+    (void)UART_Driver_Send((const uint8_t *)text, (uint16_t)strlen(text), ERROR_LOG_SEND_TIMEOUT_MS);
 #else
     (void)text;
 #endif

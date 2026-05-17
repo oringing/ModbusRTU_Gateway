@@ -265,12 +265,12 @@ static void BSP_UART_RecoveryIfNeeded(void)
             // === 新增：故障反馈机制 ===
             ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__); // 1. 尝试通过 UART 发送日志
             
-            // 2. LED 故障指示：快速闪烁 5 次，表示 UART 硬件故障
-            for(int i = 0; i < 5; i++) {
+            // 2. LED 故障指示：快速闪烁，表示 UART 硬件故障
+            for(uint32_t i = 0U; i < UART_FAULT_BLINK_COUNT; i++) {
                 BSP_LED_On();
-                HAL_Delay(50);
+                HAL_Delay(UART_FAULT_BLINK_INTERVAL_MS);
                 BSP_LED_Off();
-                HAL_Delay(50);
+                HAL_Delay(UART_FAULT_BLINK_INTERVAL_MS);
             }
             // =========================
         } else {

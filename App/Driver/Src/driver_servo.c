@@ -26,19 +26,17 @@ void Servo_Driver_SetSpeed(uint8_t channel, uint8_t speed_val)
 {
     uint16_t pulse_us;
 
-    if (speed_val < 127U) {
+    if (speed_val < MODBUS_SERVO_SPEED_NEUTRAL) {
         /* 反转区：线性映射 0->2500us, 126->1500us */
-        pulse_us = 2500U - (uint16_t)(((uint32_t)speed_val * 1000U) / 127U);
-    } else if (speed_val > 127U) {
+        pulse_us = SERVO_360_PULSE_REV_MAX_US - (uint16_t)(((uint32_t)speed_val * SERVO_360_PULSE_DELTA_US) / SERVO_360_SPEED_RANGE);
+    } else if (speed_val > MODBUS_SERVO_SPEED_NEUTRAL) {
         /* 正转区：线性映射 128->1500us, 255->500us */
-        pulse_us = 1500U - (uint16_t)(((uint32_t)(speed_val - 128U) * 1000U) / 127U);
+        pulse_us = SERVO_360_PULSE_STOP_US - (uint16_t)(((uint32_t)(speed_val - (MODBUS_SERVO_SPEED_NEUTRAL + 1U)) * SERVO_360_PULSE_DELTA_US) / SERVO_360_SPEED_RANGE);
     } else {
         /* 中位：停止 */
-        pulse_us = 1500U;
+        pulse_us = SERVO_360_PULSE_STOP_US;
     }
 
-    /* 调用底层 PWM 设置函数（需确保 BSP 层支持微秒级输入） */
-    /* 注意：这里我们暂时复用 SetAngle，但传入的是计算后的脉宽对应的“伪角度” */
-    /* 更好的做法是在 BSP 层增加一个直接设置脉宽的接口 */
+    /* 调用底层 PWM 设置函数 */
     BSP_Servo_SetPulseWidth(channel, pulse_us);
 }

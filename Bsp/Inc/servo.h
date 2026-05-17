@@ -22,6 +22,17 @@ extern "C" {
 #define SERVO_CH2_GPIO_PIN      GPIO_PIN_7
 #define SERVO_CH2_CHANNEL       TIM_CHANNEL_2
 
+/* 舵机脉宽范围 (实际根据舵机规格调整) */
+#define SERVO_PULSE_MIN_US          (500U)
+#define SERVO_PULSE_MAX_US          (2500U)
+#define SERVO_PULSE_NEUTRAL_US      (1500U)
+
+/* 角度到脉宽映射参数 */
+#define SERVO_ANGLE_MIN             (0U)
+#define SERVO_ANGLE_MAX             (180U)
+#define SERVO_PULSE_RANGE_US        (SERVO_PULSE_MAX_US - SERVO_PULSE_MIN_US)
+
+
 void BSP_Servo_Init(void);
 void BSP_Servo_SetAngle(uint8_t channel, uint16_t angle);
 void BSP_Servo_SetPulseWidth(uint8_t channel, uint16_t pulse_us);
