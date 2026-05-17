@@ -70,15 +70,16 @@ extern "C" {
 #define MODBUS_MAX_READ_REGS             (125U)  /**< 最大读取寄存器数量 */
 
 /* ================= Modbus Register Address Map ================= */
-/* Frozen holding-register map for the first 0x06 implementation round.
- * External devices are not connected yet, so sensor/status slots still expose
- * demo defaults. Only the servo target register is writable for now. */
-#define MODBUS_REG_ADDR_SENSOR_TEMP      (0U)    /**< 传感器温度寄存器地址 */
-#define MODBUS_REG_ADDR_SENSOR_HUMIDITY  (1U)    /**< 传感器湿度寄存器地址 */
-#define MODBUS_REG_ADDR_DEVICE_STATUS    (2U)    /**< 设备状态寄存器地址（只读） */
-#define MODBUS_REG_ADDR_SYSTEM_FLAGS     (3U)    /**< 系统标志寄存器地址 */
-#define MODBUS_REG_ADDR_SERVO_TARGET     (4U)    /**< 舵机目标角度寄存器地址（180° 舵机） */
-#define MODBUS_REG_ADDR_SERVO_SPEED      (5U)    /**< 舵机速度寄存器地址（360° 舵机） */
+/* Register Map V1.8: AHT20+BMP280 sensor integration + system status register.
+ * Sensor data slots (0x0000~0x0002) will be linked to I2C drivers after hardware deployment.
+ * System status register (0x0003) combines heartbeat (bit 0-3) and device flags (bit 4-7).
+ * Only servo registers (0x0004~0x0005) are writable in current version. */
+#define MODBUS_REG_ADDR_SENSOR_TEMP      (0U)    /**< AHT20 温度寄存器地址（预留，待接入） */
+#define MODBUS_REG_ADDR_SENSOR_HUMIDITY  (1U)    /**< AHT20 湿度寄存器地址（预留，待接入） */
+#define MODBUS_REG_ADDR_SENSOR_PRESSURE  (2U)    /**< BMP280 气压寄存器地址（预留，待接入） */
+#define MODBUS_REG_ADDR_DEVICE_STATUS    (3U)    /**< 系统状态寄存器（心跳+故障标志，只读） */
+#define MODBUS_REG_ADDR_SERVO_TARGET     (4U)    /**< 180° 舵机目标角度寄存器地址（可写） */
+#define MODBUS_REG_ADDR_SERVO_SPEED      (5U)    /**< 360° 舵机速度寄存器地址（可写） */
 #define MODBUS_REG_ADDR_RESERVED_BEGIN   (6U)    /**< 保留区域起始地址 */
 #define MODBUS_REG_ADDR_RESERVED_END     (9U)    /**< 保留区域结束地址 */
 

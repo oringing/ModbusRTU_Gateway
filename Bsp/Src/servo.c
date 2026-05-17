@@ -65,12 +65,12 @@ void BSP_Servo_SetAngle(uint8_t channel, uint16_t angle)
     uint32_t tim_channel;
 
     /* 边界检查：确保角度在 0-180 之间 */
-    if (angle > 180U) {
-        angle = 180U;
+    if (angle > SERVO_ANGLE_MAX) {
+        angle = SERVO_ANGLE_MAX;
     }
 
-    /* 线性映射：pulse = 500 + (angle * 2000 / 180) */
-    pulse = 500U + (uint16_t)(((uint32_t)angle * 2000U) / 180U);
+    /* 线性映射：pulse = MIN + (angle * RANGE / MAX_ANGLE) */
+    pulse = SERVO_PULSE_MIN_US + (uint16_t)(((uint32_t)angle * SERVO_PULSE_RANGE_US) / SERVO_ANGLE_MAX);
 
     /* 根据通道选择对应的定时器通道常量 */
     if (channel == 1U) {
@@ -95,8 +95,8 @@ void BSP_Servo_SetPulseWidth(uint8_t channel, uint16_t pulse_us)
     uint32_t tim_channel;
 
     /* 边界检查：确保脉宽在安全范围内 */
-    if (pulse_us < 500U) pulse_us = 500U;
-    if (pulse_us > 2500U) pulse_us = 2500U;
+    if (pulse_us < SERVO_PULSE_MIN_US) pulse_us = SERVO_PULSE_MIN_US;
+    if (pulse_us > SERVO_PULSE_MAX_US) pulse_us = SERVO_PULSE_MAX_US;
 
     /* 根据通道选择对应的定时器通道常量 */
     if (channel == 1U) {

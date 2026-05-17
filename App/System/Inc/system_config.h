@@ -15,7 +15,7 @@
 #define MONITOR_TASK_STACK_SIZE          165  /* 空闲/高压均使用74words，预留1.3倍剩余量 */
 
 /* 任务栈水位、看门狗初始化信息打印开关 */
-#define SYSTEM_UART_TEXT_LOG_ENABLE      1U    
+#define SYSTEM_UART_TEXT_LOG_ENABLE      0U    
 
 /* 任务退出等待超时（ms） */
 #define SYSTEM_TASK_STOP_TIMEOUT_MS      300U

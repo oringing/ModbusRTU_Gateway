@@ -11,6 +11,13 @@
 #define MODBUS_SERVO_SPEED_MAX           (255U) /**< 舵机速度最大值 */
 #define MODBUS_SERVO_SPEED_NEUTRAL       (127U)  /**< 360° 舵机停止点 */
 
+#define SERVO_360_PULSE_STOP_US       (1500U)
+#define SERVO_360_PULSE_REV_MAX_US    (2500U) /* Full reverse speed */
+#define SERVO_360_PULSE_FWD_MAX_US    (500U)  /* Full forward speed */
+#define SERVO_360_SPEED_RANGE         (127U)  /* Half of 0-255 range */
+#define SERVO_360_PULSE_DELTA_US      (1000U) /* Delta from neutral to max speed */
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
