@@ -252,17 +252,17 @@ static void Modbus_HandleWriteSingleReg(const uint8_t *frame, uint16_t frame_len
         return;
     }
 
-    // 发送成功响应 - 回显相同的请求内容
+    // 发送成功响应 - Modbus 0x06 规范要求原样回显请求帧（8字节）
     modbus_tx_buffer[MODBUS_RESP_ADDR_IDX] = MODBUS_SLAVE_ADDR;
     modbus_tx_buffer[MODBUS_RESP_FUNC_CODE_IDX] = MODBUS_FUNC_WRITE_SINGLE_REG;
-    modbus_tx_buffer[MODBUS_RESP_DATA_START_IDX] = (uint8_t)((reg_addr >> 8U) & 0xFFU);
-    modbus_tx_buffer[MODBUS_RESP_DATA_START_IDX + 1U] = (uint8_t)(reg_addr & 0xFFU);
-    modbus_tx_buffer[MODBUS_RESP_DATA_START_IDX + 2U] = (uint8_t)((reg_value >> 8U) & 0xFFU);
-    modbus_tx_buffer[MODBUS_RESP_DATA_START_IDX + 3U] = (uint8_t)(reg_value & 0xFFU);
+    modbus_tx_buffer[MODBUS_REQ_REG_ADDR_HIGH_IDX] = (uint8_t)((reg_addr >> 8U) & 0xFFU);
+    modbus_tx_buffer[MODBUS_REQ_REG_ADDR_LOW_IDX] = (uint8_t)(reg_addr & 0xFFU);
+    modbus_tx_buffer[MODBUS_REQ_REG_VALUE_HIGH_IDX] = (uint8_t)((reg_value >> 8U) & 0xFFU);
+    modbus_tx_buffer[MODBUS_REQ_REG_VALUE_LOW_IDX] = (uint8_t)(reg_value & 0xFFU);
 
-    uint16_t resp_crc = CalcCRC16(modbus_tx_buffer, 6U);
-    modbus_tx_buffer[6U] = (uint8_t)(resp_crc & 0xFFU);
-    modbus_tx_buffer[7U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
+    uint16_t resp_crc = CalcCRC16(modbus_tx_buffer, MODBUS_RTU_WRITE_SINGLE_REQ_LEN - MODBUS_CRC_LEN);
+    modbus_tx_buffer[MODBUS_RTU_WRITE_SINGLE_REQ_LEN - 2U] = (uint8_t)(resp_crc & 0xFFU);
+    modbus_tx_buffer[MODBUS_RTU_WRITE_SINGLE_REQ_LEN - 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
     (void)UART_Driver_Send(modbus_tx_buffer, MODBUS_RTU_WRITE_SINGLE_REQ_LEN, BSP_UART_TX_TIMEOUT);
 }
