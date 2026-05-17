@@ -4,6 +4,13 @@
 
 #include <stdint.h>
 
+/* 错误处理与故障指示配置 */
+#define ERROR_LOG_SEND_TIMEOUT_MS        20U
+#define ERROR_LED_BLINK_DELAY_LOOPS      220000U
+#define ERROR_LED_GROUP_GAP_LOOPS        650000U
+#define ERROR_STACK_OVERFLOW_HOLD_LOOPS  900000U
+#define ERROR_LED_BLINK_COUNT_DEFAULT    5U
+
 #ifdef __cplusplus
 extern "C" {
 #endif

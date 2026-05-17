@@ -2,6 +2,7 @@
 #include "uart.h"
 #include "led.h"        // 新增：包含 LED 驱动头文件
 #include "error_handler.h"
+#include "system_config.h"
 #include <string.h>
 #include "cmsis_os.h"
 
@@ -291,14 +292,14 @@ void BSP_UART_Init(void)
     GPIO_InitTypeDef GPIO_InitStruct = {0};
 
     // --- 配置 TX (PA9) ---
-    GPIO_InitStruct.Pin = BSP_UART_TX_PIN;
+    GPIO_InitStruct.Pin = BSP_UART1_TX_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(BSP_UART_GPIO_PORT, &GPIO_InitStruct);
 
     // --- 配置 RX (PA10) ---
-    GPIO_InitStruct.Pin = BSP_UART_RX_PIN;
+    GPIO_InitStruct.Pin = BSP_UART1_RX_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;   // 显式设为输入
     GPIO_InitStruct.Pull = GPIO_PULLUP;       // 强上拉，对抗干扰
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
