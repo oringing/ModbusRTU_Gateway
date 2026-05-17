@@ -1,32 +1,30 @@
 // App/Protocol/Src/modbus.c
-#include "uart.h"
-#include "driver_uart.h"
-#include "driver_servo.h" // 新增：引入舵机驱动
 #include "modbus.h"
 #include "cmsis_os.h"
+#include "driver_servo.h" // 新增：引入舵机驱动
+#include "driver_uart.h"
 #include "task.h"
+#include "uart.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
-static uint8_t modbus_rx_buffer[MODBUS_BUFFER_SIZE];
-static uint8_t modbus_tx_buffer[MODBUS_RESPONSE_BUFFER_SIZE];
+static uint8_t   modbus_rx_buffer[MODBUS_BUFFER_SIZE];
+static uint8_t   modbus_tx_buffer[MODBUS_RESPONSE_BUFFER_SIZE];
 static osMutexId s_modbus_reg_mutex = NULL;
 typedef struct {
-    uint16_t value;
-    uint16_t default_value;
-    bool read_only;
+    uint16_t                 value;
+    uint16_t                 default_value;
+    bool                     read_only;
     ModbusRegisterOnChange_t on_change;
 } ModbusRegister_t;
 
 static ModbusRegister_t holding_regs[MODBUS_REG_MAX_COUNT];
-static const uint16_t s_default_regs[] = {
-    0x1234U, 0x5678U, 0x0000U, 0x1234U, 0x5000U
-};
+static const uint16_t   s_default_regs[] = {0x1234U, 0x5678U, 0x0000U, 0x1234U, 0x5000U};
 
-static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8_t *func_code);
-static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_len);
+static bool Modbus_ValidateFrame(const uint8_t* frame, uint16_t frame_len, uint8_t* func_code);
+static void Modbus_HandleReadHoldingRegs(const uint8_t* frame, uint16_t frame_len);
 static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count);
 static void Modbus_EnsureRegisterMutex(void);
 static bool Modbus_LockRegisters(void);
@@ -37,8 +35,7 @@ static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value);
 static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value);
 static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value);
 
-void Modbus_Init(void)
-{
+void Modbus_Init(void) {
     /* Create the register mutex during startup so later task access does not
      * race on first-time initialization. If creation fails here, runtime calls
      * will retry through Modbus_LockRegisters(). */
@@ -52,34 +49,30 @@ void Modbus_Init(void)
     }
 
     /* Load bounded defaults: avoid hard-coded index writes beyond configured map size. */
-    for (uint16_t i = 0U;
-         i < (uint16_t)(sizeof(s_default_regs) / sizeof(s_default_regs[0])) &&
-         i < MODBUS_REG_MAX_COUNT;
+    for (uint16_t i = 0U; i < (uint16_t)(sizeof(s_default_regs) / sizeof(s_default_regs[0])) &&
+                          i < MODBUS_REG_MAX_COUNT;
          i++) {
         holding_regs[i].value = s_default_regs[i];
         holding_regs[i].default_value = s_default_regs[i];
     }
 
-    
     /* 新增：将设备状态寄存器设为只读 */
     holding_regs[MODBUS_REG_ADDR_DEVICE_STATUS].read_only = true;
 
     /* Step 1: 寄存器回调映射 */
     Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_TARGET, Modbus_OnServoTargetChanged);
     Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_SPEED, Modbus_OnServoSpeedChanged);
-    
+
     /* 初始化舵机驱动 */
     Servo_Driver_Init();
 }
 
-static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value)
-{
+static void Modbus_OnRegisterChanged(uint16_t old_value, uint16_t new_value) {
     (void)old_value;
     (void)new_value;
 }
 
-static void Modbus_EnsureRegisterMutex(void)
-{
+static void Modbus_EnsureRegisterMutex(void) {
     if (s_modbus_reg_mutex != NULL) {
         return;
     }
@@ -88,10 +81,9 @@ static void Modbus_EnsureRegisterMutex(void)
     s_modbus_reg_mutex = osMutexCreate(osMutex(ModbusRegisterMutex));
 }
 
-static bool Modbus_LockRegisters(void)
-{
+static bool Modbus_LockRegisters(void) {
     Modbus_EnsureRegisterMutex();
-    
+
     // 即使mutex创建失败也返回false
     if (s_modbus_reg_mutex == NULL) {
         return false;
@@ -100,8 +92,7 @@ static bool Modbus_LockRegisters(void)
     return (osMutexWait(s_modbus_reg_mutex, osWaitForever) == osOK);
 }
 
-static void Modbus_UnlockRegisters(void)
-{
+static void Modbus_UnlockRegisters(void) {
     if (s_modbus_reg_mutex != NULL) {
         osMutexRelease(s_modbus_reg_mutex);
     }
@@ -113,8 +104,7 @@ static void Modbus_UnlockRegisters(void)
  * The frame stores CRC in low-byte-first order. This helper returns the
  * combined 16-bit value so callers can split it when serializing a response.
  */
-static uint16_t CalcCRC16(const uint8_t *data, uint16_t len)
-{
+static uint16_t CalcCRC16(const uint8_t* data, uint16_t len) {
     uint16_t crc = 0xFFFFU;
     for (uint16_t i = 0U; i < len; i++) {
         crc ^= data[i];
@@ -130,8 +120,7 @@ static uint16_t CalcCRC16(const uint8_t *data, uint16_t len)
     return crc;
 }
 
-static void Modbus_SendException(uint8_t func_code, uint8_t exception_code)
-{
+static void Modbus_SendException(uint8_t func_code, uint8_t exception_code) {
     uint8_t error_response[MODBUS_EXCEPTION_RESPONSE_SIZE];
     error_response[MODBUS_EX_RESP_ADDR_IDX] = MODBUS_SLAVE_ADDR;
     error_response[MODBUS_EX_RESP_FUNC_CODE_IDX] = (uint8_t)(func_code | 0x80U);
@@ -144,8 +133,7 @@ static void Modbus_SendException(uint8_t func_code, uint8_t exception_code)
     (void)UART_Driver_Send(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, BSP_UART_TX_TIMEOUT);
 }
 
-static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8_t *func_code)
-{
+static bool Modbus_ValidateFrame(const uint8_t* frame, uint16_t frame_len, uint8_t* func_code) {
     if (frame == NULL || func_code == NULL) {
         return false;
     }
@@ -160,8 +148,8 @@ static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8
 
     /* Modbus RTU CRC in frame order: low byte first, high byte second in the frame.
      * But when recombining to 16-bit value: (high_byte << 8) | low_byte */
-    uint16_t received_crc = (uint16_t)((uint16_t)frame[frame_len - 1U] << 8U) |
-                            (uint16_t)frame[frame_len - 2U];
+    uint16_t received_crc =
+        (uint16_t)((uint16_t)frame[frame_len - 1U] << 8U) | (uint16_t)frame[frame_len - 2U];
     uint16_t calculated_crc = CalcCRC16(frame, (uint16_t)(frame_len - MODBUS_CRC_LEN));
     if (received_crc != calculated_crc) {
         return false;
@@ -171,8 +159,7 @@ static bool Modbus_ValidateFrame(const uint8_t *frame, uint16_t frame_len, uint8
     return true;
 }
 
-static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count)
-{
+static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count) {
     if (!Modbus_LockRegisters()) {
         Modbus_SendException(MODBUS_FUNC_READ_HOLDING_REGS, MODBUS_EX_ILLEGAL_DATA_VALUE);
         return;
@@ -184,22 +171,25 @@ static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count)
 
     for (uint16_t i = 0U; i < reg_count; i++) {
         uint16_t reg = holding_regs[start_addr + i].value;
-        modbus_tx_buffer[MODBUS_RESP_DATA_START_IDX + (i * MODBUS_REG_SIZE_BYTES)] = (uint8_t)((reg >> 8U) & 0xFFU);
-        modbus_tx_buffer[MODBUS_RESP_DATA_START_IDX + 1U + (i * MODBUS_REG_SIZE_BYTES)] = (uint8_t)(reg & 0xFFU);
+        modbus_tx_buffer[MODBUS_RESP_DATA_START_IDX + (i * MODBUS_REG_SIZE_BYTES)] =
+            (uint8_t)((reg >> 8U) & 0xFFU);
+        modbus_tx_buffer[MODBUS_RESP_DATA_START_IDX + 1U + (i * MODBUS_REG_SIZE_BYTES)] =
+            (uint8_t)(reg & 0xFFU);
     }
 
     Modbus_UnlockRegisters();
 
-    uint16_t resp_data_len = (uint16_t)(MODBUS_RESP_DATA_START_IDX + (reg_count * MODBUS_REG_SIZE_BYTES));
+    uint16_t resp_data_len =
+        (uint16_t)(MODBUS_RESP_DATA_START_IDX + (reg_count * MODBUS_REG_SIZE_BYTES));
     uint16_t resp_crc = CalcCRC16(modbus_tx_buffer, resp_data_len);
     modbus_tx_buffer[resp_data_len] = (uint8_t)(resp_crc & 0xFFU);
     modbus_tx_buffer[resp_data_len + 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
-    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + MODBUS_CRC_LEN), BSP_UART_TX_TIMEOUT);
+    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + MODBUS_CRC_LEN),
+                           BSP_UART_TX_TIMEOUT);
 }
 
-static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_len)
-{
+static void Modbus_HandleReadHoldingRegs(const uint8_t* frame, uint16_t frame_len) {
     /* Current implementation only supports fixed-length 0x03 request frame:
      * addr(1) + func(1) + start(2) + count(2) + crc(2) = 8 bytes.
      * This filters out self-echoed/invalid frames early. */
@@ -207,10 +197,10 @@ static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_le
         return;
     }
 
-    uint16_t start_addr = (uint16_t)((uint16_t)frame[MODBUS_REQ_START_ADDR_HIGH_IDX] << 8U) | 
+    uint16_t start_addr = (uint16_t)((uint16_t)frame[MODBUS_REQ_START_ADDR_HIGH_IDX] << 8U) |
                           frame[MODBUS_REQ_START_ADDR_LOW_IDX];
-    uint16_t reg_count  = (uint16_t)((uint16_t)frame[MODBUS_REQ_REG_COUNT_HIGH_IDX] << 8U) | 
-                          frame[MODBUS_REQ_REG_COUNT_LOW_IDX];
+    uint16_t reg_count = (uint16_t)((uint16_t)frame[MODBUS_REQ_REG_COUNT_HIGH_IDX] << 8U) |
+                         frame[MODBUS_REQ_REG_COUNT_LOW_IDX];
 
     if ((reg_count == 0U) || (reg_count > MODBUS_MAX_READ_REGS)) {
         Modbus_SendException(MODBUS_FUNC_READ_HOLDING_REGS, MODBUS_EX_ILLEGAL_DATA_VALUE);
@@ -218,8 +208,7 @@ static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_le
     }
 
     // 添加额外的边界检查，防止整数溢出和越界访问
-    if (start_addr >= MODBUS_REG_MAX_COUNT || 
-        reg_count > MODBUS_REG_MAX_COUNT ||
+    if (start_addr >= MODBUS_REG_MAX_COUNT || reg_count > MODBUS_REG_MAX_COUNT ||
         (uint32_t)start_addr + (uint32_t)reg_count > (uint32_t)MODBUS_REG_MAX_COUNT) {
         Modbus_SendException(MODBUS_FUNC_READ_HOLDING_REGS, MODBUS_EX_ILLEGAL_DATA_ADDRESS);
         return;
@@ -229,15 +218,14 @@ static void Modbus_HandleReadHoldingRegs(const uint8_t *frame, uint16_t frame_le
 }
 
 // 处理写单个寄存器的功能
-static void Modbus_HandleWriteSingleReg(const uint8_t *frame, uint16_t frame_len)
-{
+static void Modbus_HandleWriteSingleReg(const uint8_t* frame, uint16_t frame_len) {
     if (frame == NULL || frame_len != MODBUS_RTU_WRITE_SINGLE_REQ_LEN) {
         return;
     }
 
-    uint16_t reg_addr = (uint16_t)((uint16_t)frame[MODBUS_REQ_REG_ADDR_HIGH_IDX] << 8U) | 
+    uint16_t reg_addr = (uint16_t)((uint16_t)frame[MODBUS_REQ_REG_ADDR_HIGH_IDX] << 8U) |
                         frame[MODBUS_REQ_REG_ADDR_LOW_IDX];
-    uint16_t reg_value = (uint16_t)((uint16_t)frame[MODBUS_REQ_REG_VALUE_HIGH_IDX] << 8U) | 
+    uint16_t reg_value = (uint16_t)((uint16_t)frame[MODBUS_REQ_REG_VALUE_HIGH_IDX] << 8U) |
                          frame[MODBUS_REQ_REG_VALUE_LOW_IDX];
 
     // 验证寄存器地址是否有效
@@ -260,7 +248,8 @@ static void Modbus_HandleWriteSingleReg(const uint8_t *frame, uint16_t frame_len
     modbus_tx_buffer[MODBUS_REQ_REG_VALUE_HIGH_IDX] = (uint8_t)((reg_value >> 8U) & 0xFFU);
     modbus_tx_buffer[MODBUS_REQ_REG_VALUE_LOW_IDX] = (uint8_t)(reg_value & 0xFFU);
 
-    uint16_t resp_crc = CalcCRC16(modbus_tx_buffer, MODBUS_RTU_WRITE_SINGLE_REQ_LEN - MODBUS_CRC_LEN);
+    uint16_t resp_crc =
+        CalcCRC16(modbus_tx_buffer, MODBUS_RTU_WRITE_SINGLE_REQ_LEN - MODBUS_CRC_LEN);
     modbus_tx_buffer[MODBUS_RTU_WRITE_SINGLE_REQ_LEN - 2U] = (uint8_t)(resp_crc & 0xFFU);
     modbus_tx_buffer[MODBUS_RTU_WRITE_SINGLE_REQ_LEN - 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
@@ -278,8 +267,7 @@ static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value);
  * 2. 边界检查：确保值在 0-180 之间（虽然上层已校验，此处做双重保险）。
  * 3. 实时性：直接调用驱动，无复杂计算。
  */
-static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value)
-{
+static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value) {
     /* 避免重复设置相同的占空比 */
     if (old_value == new_value) {
         return;
@@ -287,7 +275,7 @@ static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value)
 
     /* 边界检查强化 */
     if (new_value > MODBUS_SERVO_TARGET_MAX) {
-        return; 
+        return;
     }
 
     /* 原子性操作：直接更新硬件 PWM，指定控制通道 1 */
@@ -297,22 +285,20 @@ static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value)
 /**
  * @brief 360° 舵机速度变更回调 (通道 2 - PA7)
  */
-static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value)
-{
+static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value) {
     if (old_value == new_value) {
         return;
     }
 
     if (new_value > MODBUS_SERVO_SPEED_MAX) {
-        return; 
+        return;
     }
 
     /* 指定控制通道 2，传入速度值 */
     Servo_Driver_SetSpeed(2U, (uint8_t)new_value);
 }
 
-bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t *value)
-{
+bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t* value) {
     if (value == NULL || addr >= MODBUS_REG_MAX_COUNT) {
         return false;
     }
@@ -326,9 +312,8 @@ bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t *value)
     return true;
 }
 
-bool Modbus_WriteHoldingRegister(uint16_t addr, uint16_t value)
-{
-    uint16_t old_value = 0U;
+bool Modbus_WriteHoldingRegister(uint16_t addr, uint16_t value) {
+    uint16_t                 old_value = 0U;
     ModbusRegisterOnChange_t on_change = NULL;
 
     if (addr >= MODBUS_REG_MAX_COUNT) {
@@ -359,8 +344,7 @@ bool Modbus_WriteHoldingRegister(uint16_t addr, uint16_t value)
  * @brief 内部任务专用写入接口（绕过只读检查）
  * @note 仅供系统任务（如心跳）使用，外部 Modbus 请求不应调用
  */
-bool Modbus_InternalWriteRegister(uint16_t addr, uint16_t value)
-{
+bool Modbus_InternalWriteRegister(uint16_t addr, uint16_t value) {
     if (addr >= MODBUS_REG_MAX_COUNT) {
         return false;
     }
@@ -375,8 +359,7 @@ bool Modbus_InternalWriteRegister(uint16_t addr, uint16_t value)
     return true;
 }
 
-bool Modbus_RegisterOnChange(uint16_t addr, ModbusRegisterOnChange_t on_change)
-{
+bool Modbus_RegisterOnChange(uint16_t addr, ModbusRegisterOnChange_t on_change) {
     if (addr >= MODBUS_REG_MAX_COUNT) {
         return false;
     }
@@ -390,10 +373,9 @@ bool Modbus_RegisterOnChange(uint16_t addr, ModbusRegisterOnChange_t on_change)
     return true;
 }
 
-void Modbus_Process(void)
-{
+void Modbus_Process(void) {
     uint16_t rx_len = UART_Driver_Receive(modbus_rx_buffer, (uint16_t)sizeof(modbus_rx_buffer), 0U);
-    uint8_t func_code = 0U;
+    uint8_t  func_code = 0U;
 
     if (rx_len == 0U) {
         return;

@@ -5,6 +5,6 @@
 #include "cmsis_os.h"
 
 void UART_Task_RequestStop(void);
-void Start_UART_Task(void const * argument);
+void Start_UART_Task(void const* argument);
 
 #endif /* __UART_TASK_H */
