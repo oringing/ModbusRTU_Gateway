@@ -1,15 +1,14 @@
 #include "servo.h"
-#include "stm32f1xx_hal_tim.h"
 #include "error_handler.h"
+#include "stm32f1xx_hal_tim.h"
 
 static TIM_HandleTypeDef htim_servo;
 
 /**
  * @brief 初始化舵机 PWM (TIM3_CH1/PA6, TIM3_CH2/PA7)
  */
-void BSP_Servo_Init(void)
-{
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
+void BSP_Servo_Init(void) {
+    GPIO_InitTypeDef   GPIO_InitStruct = {0};
     TIM_OC_InitTypeDef sConfigOC = {0};
 
     /* 1. 使能时钟 */
@@ -59,8 +58,7 @@ void BSP_Servo_Init(void)
  * @param channel: 通道索引 (1 或 2)
  * @param angle: 目标角度
  */
-void BSP_Servo_SetAngle(uint8_t channel, uint16_t angle)
-{
+void BSP_Servo_SetAngle(uint8_t channel, uint16_t angle) {
     uint16_t pulse;
     uint32_t tim_channel;
 
@@ -70,7 +68,8 @@ void BSP_Servo_SetAngle(uint8_t channel, uint16_t angle)
     }
 
     /* 线性映射：pulse = MIN + (angle * RANGE / MAX_ANGLE) */
-    pulse = SERVO_PULSE_MIN_US + (uint16_t)(((uint32_t)angle * SERVO_PULSE_RANGE_US) / SERVO_ANGLE_MAX);
+    pulse =
+        SERVO_PULSE_MIN_US + (uint16_t)(((uint32_t)angle * SERVO_PULSE_RANGE_US) / SERVO_ANGLE_MAX);
 
     /* 根据通道选择对应的定时器通道常量 */
     if (channel == 1U) {
@@ -90,13 +89,14 @@ void BSP_Servo_SetAngle(uint8_t channel, uint16_t angle)
  * @param channel: 通道索引 (1 或 2)
  * @param pulse_us: 脉冲宽度 (500 ~ 2500)
  */
-void BSP_Servo_SetPulseWidth(uint8_t channel, uint16_t pulse_us)
-{
+void BSP_Servo_SetPulseWidth(uint8_t channel, uint16_t pulse_us) {
     uint32_t tim_channel;
 
     /* 边界检查：确保脉宽在安全范围内 */
-    if (pulse_us < SERVO_PULSE_MIN_US) pulse_us = SERVO_PULSE_MIN_US;
-    if (pulse_us > SERVO_PULSE_MAX_US) pulse_us = SERVO_PULSE_MAX_US;
+    if (pulse_us < SERVO_PULSE_MIN_US)
+        pulse_us = SERVO_PULSE_MIN_US;
+    if (pulse_us > SERVO_PULSE_MAX_US)
+        pulse_us = SERVO_PULSE_MAX_US;
 
     /* 根据通道选择对应的定时器通道常量 */
     if (channel == 1U) {

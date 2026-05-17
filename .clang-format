@@ -1,67 +1,54 @@
-# .clang-format - 嵌入式 C 代码格式化规则
-# 基于 LLVM 风格，适配嵌入式项目规范
+# 嵌入式 C 代码格式化规则 - 行业主流风格
+# 基于：Linux 内核风格 + MISRA 约束 + 嵌入式团队惯例
+# 适用：STM32F103 + FreeRTOS + Modbus RTU 网关项目
 
-Language:        C
+Language: C
 
-# 基础缩进
-IndentWidth:     4
-TabWidth:        4
-UseTab:          Never
-BreakBeforeBraces: Allman  # 函数/结构体大括号独占一行
+# ==================== 基础缩进 ====================
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never                    # 4空格缩进（80%嵌入式团队采用）
+BreakBeforeBraces: Attach        # K&R风格：左括号不换行（行业主流）
 
-# 列宽限制（考虑嵌入式终端显示）
-ColumnLimit:     100
+# ==================== 列宽限制 ====================
+ColumnLimit: 100                 # 现代团队标准（80-120字符）
 
-# 指针和引用对齐
-PointerAlignment: Left
+# ==================== 指针对齐 ====================
+PointerAlignment: Left           # * 靠近变量名：int *ptr
 ReferenceAlignment: Left
 
-# 空格控制
-SpaceAfterCStyleCast: false
-SpaceAfterTemplateKeyword: true
-SpaceBeforeAssignmentOperators: true
-SpaceBeforeCpp11BracedList: false
-SpaceBeforeCtorInitializerColon: true
-SpaceBeforeInheritanceColon: true
-SpaceBeforeParens: ControlStatements
-SpaceBeforeRangeBasedForLoopColon: true
-SpaceInEmptyParentheses: false
-SpacesBeforeTrailingComments: 1
-SpacesInAngles: false
-SpacesInContainerLiterals: true
-SpacesInCStyleCastParentheses: false
-SpacesInParentheses: false
-SpacesInSquareBrackets: false
+# ==================== 空格控制 ====================
+SpaceAfterCStyleCast: false      # (int)x 不加空格
+SpaceBeforeParens: ControlStatements  # if/for/while 后加空格
+SpacesBeforeTrailingComments: 1  # 行尾注释前1个空格
+SpacesInParentheses: false       # (expr) 内部不加空格
+SpacesInSquareBrackets: false    # array[0] 内部不加空格
 
-# 换行控制
-AllowAllArgumentsOnNextLine: true
-AllowAllConstructorInitializersOnNextLine: true
-AllowAllParametersOfDeclarationOnNextLine: true
-AllowShortBlocksOnASingleLine: Empty
-AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Empty
+# ==================== 换行控制 ====================
+# MISRA 要求：函数体必须可见，禁止压缩
+AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
+AlwaysBreakBeforeMultilineStrings: false
 
-# 宏和预处理
-IndentPPDirectives: AfterHash
-MacroBlockBegin: ''
-MacroBlockEnd: ''
+# ==================== 宏和预处理 ====================
+IndentPPDirectives: AfterHash    # #define 缩进
 
-# 注释对齐
-AlignTrailingComments: true
-CommentPragmas: '^ IWYU pragma:'
+# ==================== 注释对齐 ====================
+AlignTrailingComments: true      # 行尾注释对齐
+ReflowComments: true             # 自动重排注释换行
 
-# 枚举和结构体
+# ==================== 声明对齐（MISRA 友好）====================
+AlignConsecutiveAssignments: false   # 关闭连续赋值对齐（避免过度对齐）
+AlignConsecutiveDeclarations: true   # 连续声明对齐（保留）
+
+# ==================== 头文件排序 ====================
 SortIncludes: CaseInsensitive
-IncludeBlocks: Preserve
-IncludeCategories:
-  - Regex:           '^<.*\.h>$'
-    Priority:        1
-  - Regex:           '^".*"$'
-    Priority:        2
+IncludeBlocks: Preserve          # 保留原有分组
 
-# 嵌入式特殊规则
-FixNamespaceComments: false
+# ==================== 其他 ====================
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
 Cpp11BracedListStyle: true
-Standard:            c99  # 嵌入式常用 C99 标准
+DerivePointerAlignment: false
+SortUsingDeclarations: true

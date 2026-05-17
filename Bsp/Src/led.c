@@ -1,8 +1,7 @@
 // Bsp/Src/led.c
 #include "led.h"
 
-void BSP_LED_Init(void)
-{
+void BSP_LED_Init(void) {
     // 初始化 PC13 为输出模式
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -17,18 +16,14 @@ void BSP_LED_Init(void)
     HAL_GPIO_WritePin(LED_C13_GPIO_Port, LED_C13_Pin, GPIO_PIN_SET);
 }
 
-void BSP_LED_Toggle(void)
-{
+void BSP_LED_Toggle(void) {
     HAL_GPIO_TogglePin(LED_C13_GPIO_Port, LED_C13_Pin);
 }
 
-void BSP_LED_On(void)
-{
+void BSP_LED_On(void) {
     HAL_GPIO_WritePin(LED_C13_GPIO_Port, LED_C13_Pin, GPIO_PIN_RESET);
 }
 
-void BSP_LED_Off(void)
-{
+void BSP_LED_Off(void) {
     HAL_GPIO_WritePin(LED_C13_GPIO_Port, LED_C13_Pin, GPIO_PIN_SET);
 }
-

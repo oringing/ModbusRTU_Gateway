@@ -15,4 +15,3 @@ void BSP_LED_On(void);
 void BSP_LED_Off(void);
 
 #endif /* __LED_H__ */
-
