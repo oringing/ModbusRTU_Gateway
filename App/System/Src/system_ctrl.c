@@ -1,60 +1,58 @@
-//App/System/Src/system_ctrl.c
+// App/System/Src/system_ctrl.c
 
 #include "system_ctrl.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "string.h"
-#include "stdio.h"
 #include "driver_uart.h"
-#include "led_task.h"
-#include "uart_task.h"
-#include "monitor_task.h"
-#include "system_config.h"
-#include "modbus.h"
-#include "uart.h"
 #include "error_handler.h"
+#include "FreeRTOS.h"
+#include "led_task.h"
+#include "modbus.h"
+#include "monitor_task.h"
+#include "stdio.h"
 #include "stm32f1xx_hal_iwdg.h"
+#include "string.h"
+#include "system_config.h"
+#include "task.h"
+#include "uart.h"
+#include "uart_task.h"
 
 /* Private variables ---------------------------------------------------------*/
 #if (SYSTEM_USE_IWDG == 1U)
-static IWDG_HandleTypeDef hiwdg;  // 全局IWDG句柄
+static IWDG_HandleTypeDef hiwdg; // 全局IWDG句柄
 #endif
 
-static osThreadId s_led_task_handle = NULL;
-static osThreadId s_uart_task_handle = NULL;
-static osThreadId s_monitor_task_handle = NULL;
+static osThreadId     s_led_task_handle = NULL;
+static osThreadId     s_uart_task_handle = NULL;
+static osThreadId     s_monitor_task_handle = NULL;
 static SystemStatus_t s_last_error = SYSTEM_OK;
-static char s_stack_log_line[SYSTEM_STACK_LOG_BUF_SIZE];
-static bool s_led_stack_warn_active = false;
-static bool s_uart_stack_warn_active = false;
-static bool s_monitor_stack_warn_active = false;
+static char           s_stack_log_line[SYSTEM_STACK_LOG_BUF_SIZE];
+static bool           s_led_stack_warn_active = false;
+static bool           s_uart_stack_warn_active = false;
+static bool           s_monitor_stack_warn_active = false;
 
 /* Private function prototypes -----------------------------------------------*/
-static void System_Monitor_Log(const char *msg);
-static void System_StopTaskIfRunning(osThreadId *task_handle);
-static bool System_ValidateConfig(void);
-static bool System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms);
-static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_handle);
-static uint32_t System_GetTaskStackWarnThreshold(const char *task_name);
-static bool *System_GetTaskStackWarnFlag(const char *task_name);
+static void       System_Monitor_Log(const char* msg);
+static void       System_StopTaskIfRunning(osThreadId* task_handle);
+static bool       System_ValidateConfig(void);
+static bool       System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms);
+static void       System_LogTaskStackWatermark(const char* task_name, osThreadId task_handle);
+static uint32_t   System_GetTaskStackWarnThreshold(const char* task_name);
+static bool*      System_GetTaskStackWarnFlag(const char* task_name);
 static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id);
 static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id);
-static void System_IWDG_Init(void);
+static void       System_IWDG_Init(void);
 
 /**
-  * @brief  Initialize system control module
-  * @param  None
-  * @retval None
-  */
-void System_Init(void)
-{
+ * @brief  Initialize system control module
+ * @param  None
+ * @retval None
+ */
+void System_Init(void) {
     // 初始化看门狗
     System_IWDG_Init();
     (void)UART_Driver_Init();
 }
 
-void System_Ctrl_Init(void)
-{
+void System_Ctrl_Init(void) {
     if (!System_ValidateConfig()) {
         s_last_error = SYSTEM_ERR_CONFIG_INVALID;
         System_Monitor_Log("ERR: invalid system config\r\n");
@@ -65,24 +63,19 @@ void System_Ctrl_Init(void)
     System_Init();
 }
 
-SystemStatus_t System_StartTasks(void)
-{
+SystemStatus_t System_StartTasks(void) {
     if (s_led_task_handle == NULL) {
-        s_led_task_handle = System_CreateTask("LED_Task",
-                                              Start_LED_Task,
-                                              LED_TASK_PRIORITY,
-                                              LED_TASK_STACK_SIZE);
+        s_led_task_handle =
+            System_CreateTask("LED_Task", Start_LED_Task, LED_TASK_PRIORITY, LED_TASK_STACK_SIZE);
         if (s_led_task_handle == NULL) {
             s_last_error = SYSTEM_ERR_TASK_CREATE_LED;
             System_Monitor_Log("ERR: create LED_Task failed\r\n");
             return s_last_error;
         }
     }
-    
+
     if (s_uart_task_handle == NULL) {
-        s_uart_task_handle = System_CreateTask("UART_Task",
-                                               Start_UART_Task,
-                                               UART_TASK_PRIORITY,
+        s_uart_task_handle = System_CreateTask("UART_Task", Start_UART_Task, UART_TASK_PRIORITY,
                                                UART_TASK_STACK_SIZE);
         if (s_uart_task_handle == NULL) {
             s_last_error = SYSTEM_ERR_TASK_CREATE_UART;
@@ -91,12 +84,10 @@ SystemStatus_t System_StartTasks(void)
             return s_last_error;
         }
     }
-    
+
     if (s_monitor_task_handle == NULL) {
-        s_monitor_task_handle = System_CreateTask("Monitor_Task",
-                                                  Start_Monitor_Task,
-                                                  MONITOR_TASK_PRIORITY,
-                                                  MONITOR_TASK_STACK_SIZE);
+        s_monitor_task_handle = System_CreateTask("Monitor_Task", Start_Monitor_Task,
+                                                  MONITOR_TASK_PRIORITY, MONITOR_TASK_STACK_SIZE);
         if (s_monitor_task_handle == NULL) {
             s_last_error = SYSTEM_ERR_TASK_CREATE_MONITOR;
             System_Monitor_Log("ERR: create Monitor_Task failed, rollback\r\n");
@@ -104,72 +95,60 @@ SystemStatus_t System_StartTasks(void)
             return s_last_error;
         }
     }
-    
+
     s_last_error = SYSTEM_OK;
     return s_last_error;
 }
 
-void System_StopTasks(void)
-{
+void System_StopTasks(void) {
     System_StopTaskIfRunning(&s_monitor_task_handle);
     System_StopTaskIfRunning(&s_uart_task_handle);
     System_StopTaskIfRunning(&s_led_task_handle);
 }
 
-SystemStatus_t System_GetLastError(void)
-{
+SystemStatus_t System_GetLastError(void) {
     return s_last_error;
 }
 
-osThreadId System_CreateTask(const char *name,
-                             void (*taskFunc)(void const *argument),
-                             osPriority priority,
-                             uint32_t stackSize)
-{
+osThreadId System_CreateTask(const char* name, void (*taskFunc)(void const* argument),
+                             osPriority priority, uint32_t stackSize) {
     if (name == NULL || taskFunc == NULL || stackSize == 0U || priority == osPriorityError) {
         return NULL;
     }
 
-    osThreadDef_t thread_def = {
-        .name = (char *)name,
-        .pthread = taskFunc,
-        .tpriority = priority,
-        .instances = 1U,
-        .stacksize = stackSize
-    };
+    osThreadDef_t thread_def = {.name = (char*)name,
+                                .pthread = taskFunc,
+                                .tpriority = priority,
+                                .instances = 1U,
+                                .stacksize = stackSize};
 
     return osThreadCreate(&thread_def, NULL);
 }
 
-void System_DestroyTask(osThreadId taskID)
-{
+void System_DestroyTask(osThreadId taskID) {
     if (taskID != NULL) {
         osThreadTerminate(taskID);
     }
 }
 
-uint32_t System_GetStackWatermark(osThreadId taskID)
-{
+uint32_t System_GetStackWatermark(osThreadId taskID) {
     if (taskID == NULL) {
         return 0U;
     }
     return (uint32_t)uxTaskGetStackHighWaterMark(taskID);
 }
 
-void System_CheckStackWatermark(void)
-{
+void System_CheckStackWatermark(void) {
     System_LogTaskStackWatermark("UART", s_uart_task_handle);
     System_LogTaskStackWatermark("LED", s_led_task_handle);
     System_LogTaskStackWatermark("Monitor", s_monitor_task_handle);
 }
 
-void System_Check_Stack_Watermark(void)
-{
+void System_Check_Stack_Watermark(void) {
     System_CheckStackWatermark();
 }
 
-bool System_SetTaskPriority(SystemTaskId_t task_id, osPriority priority)
-{
+bool System_SetTaskPriority(SystemTaskId_t task_id, osPriority priority) {
     osThreadId task_handle = System_GetTaskHandleById(task_id);
     if (task_handle == NULL) {
         return false;
@@ -177,8 +156,7 @@ bool System_SetTaskPriority(SystemTaskId_t task_id, osPriority priority)
     return (osThreadSetPriority(task_handle, priority) == osOK);
 }
 
-osPriority System_GetTaskPriority(SystemTaskId_t task_id)
-{
+osPriority System_GetTaskPriority(SystemTaskId_t task_id) {
     osThreadId task_handle = System_GetTaskHandleById(task_id);
     if (task_handle == NULL) {
         return osPriorityError;
@@ -186,33 +164,31 @@ osPriority System_GetTaskPriority(SystemTaskId_t task_id)
     return osThreadGetPriority(task_handle);
 }
 
-void System_ResetTaskPriorities(void)
-{
+void System_ResetTaskPriorities(void) {
     (void)System_SetTaskPriority(SYSTEM_TASK_LED, System_GetDefaultPriorityById(SYSTEM_TASK_LED));
     (void)System_SetTaskPriority(SYSTEM_TASK_UART, System_GetDefaultPriorityById(SYSTEM_TASK_UART));
-    (void)System_SetTaskPriority(SYSTEM_TASK_MONITOR, System_GetDefaultPriorityById(SYSTEM_TASK_MONITOR));
+    (void)System_SetTaskPriority(SYSTEM_TASK_MONITOR,
+                                 System_GetDefaultPriorityById(SYSTEM_TASK_MONITOR));
 }
 
 /**
-  * @brief  Log message via UART
-  * @param  msg: message string to send
-  * @retval None
-  */
-static void System_Monitor_Log(const char *msg)
-{
+ * @brief  Log message via UART
+ * @param  msg: message string to send
+ * @retval None
+ */
+static void System_Monitor_Log(const char* msg) {
     if (msg == NULL) {
         return;
     }
 
 #if (SYSTEM_UART_TEXT_LOG_ENABLE == 1U)
-    (void)UART_Driver_Send((const uint8_t *)msg, (uint16_t)strlen(msg), 20U);
+    (void)UART_Driver_Send((const uint8_t*)msg, (uint16_t)strlen(msg), 20U);
 #else
     (void)msg;
 #endif
 }
 
-static void System_StopTaskIfRunning(osThreadId *task_handle)
-{
+static void System_StopTaskIfRunning(osThreadId* task_handle) {
     if (task_handle == NULL || *task_handle == NULL) {
         return;
     }
@@ -237,8 +213,7 @@ static void System_StopTaskIfRunning(osThreadId *task_handle)
     *task_handle = NULL;
 }
 
-static bool System_ValidateConfig(void)
-{
+static bool System_ValidateConfig(void) {
     if (LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS) {
         System_Monitor_Log("CFG FAIL: LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS\r\n");
         return false;
@@ -263,25 +238,25 @@ static bool System_ValidateConfig(void)
         System_Monitor_Log("CFG FAIL: MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE\r\n");
         return false;
     }
-    
-#pragma diag_suppress 111  // 抑制"语句不可达"警告
+
+#pragma diag_suppress 111 // 抑制"语句不可达"警告
     // 此检查用于验证配置的有效性，即使当前配置不为0，也应该保留此检查
     // 以防止未来修改配置时出现错误（防御性编程）
     if (BSP_UART_TX_TIMEOUT < BSP_UART_TX_TIMEOUT_MIN_MS) {
         System_Monitor_Log("CFG FAIL: BSP_UART_TX_TIMEOUT == 0\r\n");
         return false;
     }
-#pragma diag_default 111   // 恢复警告
-    
+#pragma diag_default 111 // 恢复警告
+
     if (SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS) {
-        System_Monitor_Log("CFG FAIL: SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS\r\n");
+        System_Monitor_Log(
+            "CFG FAIL: SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS\r\n");
         return false;
     }
     return true;
 }
 
-static bool System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms)
-{
+static bool System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms) {
 #if (INCLUDE_eTaskGetState == 1)
     uint32_t elapsed = 0U;
     while (elapsed < timeout_ms) {
@@ -302,11 +277,10 @@ static bool System_WaitTaskDeleted(osThreadId task_handle, uint32_t timeout_ms)
 #endif
 }
 
-static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_handle)
-{
+static void System_LogTaskStackWatermark(const char* task_name, osThreadId task_handle) {
     uint32_t watermark = 0U;
     uint32_t warn_th = 0U;
-    bool *warn_active = NULL;
+    bool*    warn_active = NULL;
 
     if (task_name == NULL) {
         return;
@@ -328,10 +302,8 @@ static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_
     warn_th = System_GetTaskStackWarnThreshold(task_name);
 
     /* Use %u for uint32_t on most embedded ARM GCC targets to avoid format warnings */
-    (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
-                   "%s Stack Watermark: %u words\r\n",
-                   task_name,
-                   (unsigned int)watermark);
+    (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line), "%s Stack Watermark: %u words\r\n",
+                   task_name, (unsigned int)watermark);
     System_Monitor_Log(s_stack_log_line);
 
     if ((warn_th > 0U) && (watermark <= warn_th)) {
@@ -342,22 +314,19 @@ static void System_LogTaskStackWatermark(const char *task_name, osThreadId task_
             *warn_active = true;
         }
         (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
-                       "WARN: %s stack low watermark <= %u words\r\n",
-                       task_name,
+                       "WARN: %s stack low watermark <= %u words\r\n", task_name,
                        (unsigned int)warn_th);
         System_Monitor_Log(s_stack_log_line);
     } else if ((warn_active != NULL) && *warn_active) {
         *warn_active = false;
         (void)snprintf(s_stack_log_line, sizeof(s_stack_log_line),
-                       "INFO: %s stack watermark recovered above %u words\r\n",
-                       task_name,
+                       "INFO: %s stack watermark recovered above %u words\r\n", task_name,
                        (unsigned int)warn_th);
         System_Monitor_Log(s_stack_log_line);
     }
 }
 
-static uint32_t System_GetTaskStackWarnThreshold(const char *task_name)
-{
+static uint32_t System_GetTaskStackWarnThreshold(const char* task_name) {
     if (task_name == NULL) {
         return 0U;
     }
@@ -373,8 +342,7 @@ static uint32_t System_GetTaskStackWarnThreshold(const char *task_name)
     return 0U;
 }
 
-static bool *System_GetTaskStackWarnFlag(const char *task_name)
-{
+static bool* System_GetTaskStackWarnFlag(const char* task_name) {
     if (task_name == NULL) {
         return NULL;
     }
@@ -390,53 +358,47 @@ static bool *System_GetTaskStackWarnFlag(const char *task_name)
     return NULL;
 }
 
-static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id)
-{
+static osThreadId System_GetTaskHandleById(SystemTaskId_t task_id) {
     switch (task_id) {
-        case SYSTEM_TASK_LED:
-            return s_led_task_handle;
-        case SYSTEM_TASK_UART:
-            return s_uart_task_handle;
-        case SYSTEM_TASK_MONITOR:
-            return s_monitor_task_handle;
-        default:
-            return NULL;
+    case SYSTEM_TASK_LED:
+        return s_led_task_handle;
+    case SYSTEM_TASK_UART:
+        return s_uart_task_handle;
+    case SYSTEM_TASK_MONITOR:
+        return s_monitor_task_handle;
+    default:
+        return NULL;
     }
 }
 
-static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id)
-{
+static osPriority System_GetDefaultPriorityById(SystemTaskId_t task_id) {
     switch (task_id) {
-        case SYSTEM_TASK_LED:
-            return LED_TASK_PRIORITY;
-        case SYSTEM_TASK_UART:
-            return UART_TASK_PRIORITY;
-        case SYSTEM_TASK_MONITOR:
-            return MONITOR_TASK_PRIORITY;
-        default:
-            return osPriorityError;
+    case SYSTEM_TASK_LED:
+        return LED_TASK_PRIORITY;
+    case SYSTEM_TASK_UART:
+        return UART_TASK_PRIORITY;
+    case SYSTEM_TASK_MONITOR:
+        return MONITOR_TASK_PRIORITY;
+    default:
+        return osPriorityError;
     }
 }
 
 /**
-  * @brief  Initialize IWDG (Independent Watchdog)
-  * @param  None
-  * @retval None
-  */
-static void System_IWDG_Init(void)
-{
+ * @brief  Initialize IWDG (Independent Watchdog)
+ * @param  None
+ * @retval None
+ */
+static void System_IWDG_Init(void) {
 #if (SYSTEM_USE_IWDG == 1U)
     hiwdg.Instance = IWDG;
-    hiwdg.Init.Prescaler = IWDG_PRESCALER_256;  // 预分频系数256，假设LSI 40KHz，则计数频率约156Hz
-    hiwdg.Init.Reload = IWDG_RELOAD_VALUE;      // 重装载值，约2秒超时
+    hiwdg.Init.Prescaler = IWDG_PRESCALER_256; // 预分频系数256，假设LSI 40KHz，则计数频率约156Hz
+    hiwdg.Init.Reload = IWDG_RELOAD_VALUE;     // 重装载值，约2秒超时
 
-    if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
-    {
+    if (HAL_IWDG_Init(&hiwdg) != HAL_OK) {
         // 看门狗初始化失败，记录错误
         ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
-    }
-    else
-    {
+    } else {
         // 看门狗初始化成功
         System_Monitor_Log("IWDG initialized successfully\r\n");
     }
@@ -444,12 +406,11 @@ static void System_IWDG_Init(void)
 }
 
 /**
-  * @brief  Feed IWDG (Refresh Independent Watchdog)
-  * @param  None
-  * @retval None
-  */
-void System_IWDG_Feed(void)
-{
+ * @brief  Feed IWDG (Refresh Independent Watchdog)
+ * @param  None
+ * @retval None
+ */
+void System_IWDG_Feed(void) {
 #if (SYSTEM_USE_IWDG == 1U)
     HAL_IWDG_Refresh(&hiwdg);
 #else

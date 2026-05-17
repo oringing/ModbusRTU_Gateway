@@ -2,15 +2,14 @@
 /* Includes ------------------------------------------------------------------*/
 #include "monitor_task.h"
 #include "FreeRTOS.h"
-#include "task.h"
-#include "system_ctrl.h"
-#include "system_config.h"
 #include "modbus.h"
+#include "system_config.h"
+#include "system_ctrl.h"
+#include "task.h"
 
 static volatile uint8_t s_monitor_task_stop = 0U;
 
-void Start_Monitor_Task(void const * argument)
-{
+void Start_Monitor_Task(void const* argument) {
     /* USER CODE BEGIN Monitor_Task */
     uint32_t last_heartbeat_tick = 0;
     uint32_t last_feed_tick = 0;
@@ -22,8 +21,7 @@ void Start_Monitor_Task(void const * argument)
     last_stack_check_tick = osKernelSysTick();
 
     /* Infinite loop */
-    for (;;)
-    {
+    for (;;) {
         uint32_t current_tick = osKernelSysTick();
 
         /* 1. 心跳逻辑 (每秒翻转一次低 4 位) */
@@ -54,7 +52,6 @@ void Start_Monitor_Task(void const * argument)
     /* USER CODE END Monitor_Task */
 }
 
-void Monitor_Task_RequestStop(void)
-{
+void Monitor_Task_RequestStop(void) {
     s_monitor_task_stop = 1U;
 }
