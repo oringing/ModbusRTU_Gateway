@@ -1,13 +1,12 @@
 // App/Src/driver/driver_uart.c
 #include "driver_uart.h"
-#include "uart.h"
 #include "cmsis_os.h"
 #include "task.h"
+#include "uart.h"
 
 static osMutexId s_uart_mutex = NULL;
 
-static void UART_Driver_EnsureMutex(void)
-{
+static void UART_Driver_EnsureMutex(void) {
     if (s_uart_mutex != NULL) {
         return;
     }
@@ -18,14 +17,12 @@ static void UART_Driver_EnsureMutex(void)
     }
 }
 
-bool UART_Driver_Init(void)
-{
+bool UART_Driver_Init(void) {
     UART_Driver_EnsureMutex();
     return true;
 }
 
-bool UART_Driver_Send(const uint8_t *data, uint16_t len, uint32_t timeout)
-{
+bool UART_Driver_Send(const uint8_t* data, uint16_t len, uint32_t timeout) {
     if (data == NULL || len == 0U) {
         return false;
     }
@@ -46,8 +43,7 @@ bool UART_Driver_Send(const uint8_t *data, uint16_t len, uint32_t timeout)
     return ok;
 }
 
-uint16_t UART_Driver_Receive(uint8_t *buffer, uint16_t max_len, uint32_t timeout)
-{
+uint16_t UART_Driver_Receive(uint8_t* buffer, uint16_t max_len, uint32_t timeout) {
     if (buffer == NULL || max_len == 0U) {
         return 0;
     }
@@ -69,4 +65,3 @@ uint16_t UART_Driver_Receive(uint8_t *buffer, uint16_t max_len, uint32_t timeout
 
     return 0;
 }
-
