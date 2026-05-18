@@ -22,8 +22,8 @@ typedef struct {
 } ModbusRegister_t;
 
 static ModbusRegister_t holding_regs[MODBUS_REG_MAX_COUNT]; // 保持寄存器数组，受s_modbus_reg_mutex保护
-static const uint16_t   s_default_regs[] = {0x1234U, 0x5678U, 0x0000U, 0x1234U,
-                                            0x5000U}; // 前5个寄存器的默认初始值
+static const uint16_t   s_default_regs[] = {0x0000U, 0x1000U, 0x2000U, 0x3000U,
+                                            0x4000U}; // 前5个寄存器的默认初始值
 
 // 内部函数声明
 static bool Modbus_ValidateFrame(const uint8_t* frame, uint16_t frame_len, uint8_t* func_code);

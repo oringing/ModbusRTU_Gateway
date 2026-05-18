@@ -226,51 +226,93 @@ static void System_StopTaskIfRunning(osThreadId* task_handle) {
 
 // 校验系统配置参数是否在合理范围内（防止配置错误导致崩溃）
 static bool System_ValidateConfig(void) {
+    char log_buf[128];
+    
+    // === 编译期检查（宏定义冲突在编译时报错）===
+#if (MONITOR_TASK_STACK_SIZE < UART_TASK_STACK_SIZE)
+#error "MONITOR_TASK_STACK_SIZE must be >= UART_TASK_STACK_SIZE"
+#endif
+    
+#if (MODBUS_SLAVE_ADDR == 0U || MODBUS_SLAVE_ADDR > 247U)
+#error "MODBUS_SLAVE_ADDR must be in range [1, 247]"
+#endif
+
+    // === 运行时检查（动态配置或外部输入）===
+    
     // LED任务栈大小检查
     if (LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS) {
-        System_Monitor_Log("CFG FAIL: LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS\r\n");
+        (void)snprintf(log_buf, sizeof(log_buf),
+            "CFG FAIL: LED_TASK_STACK_SIZE=%u < MIN=%u\r\n",
+            (unsigned int)LED_TASK_STACK_SIZE, (unsigned int)LED_TASK_STACK_MIN_WORDS);
+        System_Monitor_Log(log_buf);
         return false;
     }
+    
     // UART任务栈大小检查
     if (UART_TASK_STACK_SIZE < UART_TASK_STACK_MIN_WORDS) {
-        System_Monitor_Log("CFG FAIL: UART_TASK_STACK_SIZE < UART_TASK_STACK_MIN_WORDS\r\n");
+        (void)snprintf(log_buf, sizeof(log_buf),
+            "CFG FAIL: UART_TASK_STACK_SIZE=%u < MIN=%u\r\n",
+            (unsigned int)UART_TASK_STACK_SIZE, (unsigned int)UART_TASK_STACK_MIN_WORDS);
+        System_Monitor_Log(log_buf);
         return false;
     }
+    
     // Monitor任务栈大小检查
     if (MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS) {
-        System_Monitor_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS\r\n");
+        (void)snprintf(log_buf, sizeof(log_buf),
+            "CFG FAIL: MONITOR_TASK_STACK_SIZE=%u < MIN=%u\r\n",
+            (unsigned int)MONITOR_TASK_STACK_SIZE, (unsigned int)MONITOR_TASK_STACK_MIN_WORDS);
+        System_Monitor_Log(log_buf);
         return false;
     }
-    // Monitor任务栈应大于UART任务栈（职责更重）
-    if (MONITOR_TASK_STACK_SIZE < UART_TASK_STACK_SIZE) {
-        System_Monitor_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < UART_TASK_STACK_SIZE\r\n");
-        return false;
-    }
+    
     // UART接收缓冲区大小检查
     if (BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE) {
-        System_Monitor_Log("CFG FAIL: BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE\r\n");
+        (void)snprintf(log_buf, sizeof(log_buf),
+            "CFG FAIL: BSP_UART_RX_BUF_SIZE=%u < MIN=%u\r\n",
+            (unsigned int)BSP_UART_RX_BUF_SIZE, (unsigned int)BSP_UART_RX_BUF_MIN_SIZE);
+        System_Monitor_Log(log_buf);
         return false;
     }
+    
     // Modbus缓冲区大小检查
     if (MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE) {
-        System_Monitor_Log("CFG FAIL: MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE\r\n");
+        (void)snprintf(log_buf, sizeof(log_buf),
+            "CFG FAIL: MODBUS_BUFFER_SIZE=%u < MIN=%u\r\n",
+            (unsigned int)MODBUS_BUFFER_SIZE, (unsigned int)MODBUS_BUFFER_MIN_SIZE);
+        System_Monitor_Log(log_buf);
         return false;
     }
 
 #pragma diag_suppress 111 // 抑制"语句不可达"警告
     // 防御性编程：即使当前配置不为0，也保留此检查，防止未来修改出错
     if (BSP_UART_TX_TIMEOUT < BSP_UART_TX_TIMEOUT_MIN_MS) {
-        System_Monitor_Log("CFG FAIL: BSP_UART_TX_TIMEOUT == 0\r\n");
+        (void)snprintf(log_buf, sizeof(log_buf),
+            "CFG FAIL: BSP_UART_TX_TIMEOUT=%u < MIN=%u\r\n",
+            (unsigned int)BSP_UART_TX_TIMEOUT, (unsigned int)BSP_UART_TX_TIMEOUT_MIN_MS);
+        System_Monitor_Log(log_buf);
         return false;
     }
 #pragma diag_default 111 // 恢复警告
 
     // 任务停止超时检查
     if (SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS) {
-        System_Monitor_Log(
-            "CFG FAIL: SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS\r\n");
+        (void)snprintf(log_buf, sizeof(log_buf),
+            "CFG FAIL: SYSTEM_TASK_STOP_TIMEOUT_MS=%u < MIN=%u\r\n",
+            (unsigned int)SYSTEM_TASK_STOP_TIMEOUT_MS, (unsigned int)SYSTEM_TASK_STOP_TIMEOUT_MIN_MS);
+        System_Monitor_Log(log_buf);
         return false;
     }
+    
+    // Modbus从机地址范围检查（编译期已检查，此处为运行时防御）
+    if (MODBUS_SLAVE_ADDR == 0U || MODBUS_SLAVE_ADDR > 247U) {
+        (void)snprintf(log_buf, sizeof(log_buf),
+            "CFG FAIL: MODBUS_SLAVE_ADDR=%u out of range [1, 247]\r\n",
+            (unsigned int)MODBUS_SLAVE_ADDR);
+        System_Monitor_Log(log_buf);
+        return false;
+    }
+    
     return true;
 }
 
