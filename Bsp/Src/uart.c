@@ -6,6 +6,10 @@
 #include "system_config.h"
 #include <string.h>
 
+#if (UART_FAULT_BLINK_INTERVAL_MS > 1000)
+    #error "UART_FAULT_BLINK_INTERVAL_MS 过大，忙等待会长时间阻塞CPU"
+#endif
+
 // 私有变量：UART句柄及双缓冲区
 static UART_HandleTypeDef huart1;
 static uint8_t            s_rx_buffer_a[BSP_UART_RX_BUF_SIZE]; // 接收缓冲区A
@@ -47,6 +51,15 @@ static void BSP_UART_FinalizeFrameFromISR(void);
 static bool BSP_UART_ShouldThrottleLog(void);
 static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef* huart);
 static void BSP_UART_RecoveryIfNeeded(void);
+
+// UART故障恢复专用忙等待延时，关中断安全；72MHz下每毫秒约68000次循环（实测校准值）
+static void Uart_BusyDelay(uint32_t ms) {
+    volatile uint32_t loops = ms * 68000U;
+    while (loops-- != 0U) {
+        __NOP();
+    }
+}
+
 
 // 启动单字节接收（裸接口，无状态检查）
 static HAL_StatusTypeDef BSP_UART_StartReceiveByteRaw(void) {
@@ -267,13 +280,13 @@ static void BSP_UART_RecoveryIfNeeded(void) {
             s_uart_hw_fault = true;
             s_rx_need_recovery = false;
 
-            // 故障反馈：记录日志 + LED快速闪烁
+            // 故障反馈：记录日志 + LED快速闪烁（使用忙等待避免关中断死锁）
             ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
             for (uint32_t i = 0U; i < UART_FAULT_BLINK_COUNT; i++) {
                 BSP_LED_On();
-                HAL_Delay(UART_FAULT_BLINK_INTERVAL_MS);
+                Uart_BusyDelay(UART_FAULT_BLINK_INTERVAL_MS);
                 BSP_LED_Off();
-                HAL_Delay(UART_FAULT_BLINK_INTERVAL_MS);
+                Uart_BusyDelay(UART_FAULT_BLINK_INTERVAL_MS);
             }
         } else {
             s_rx_need_recovery = true; // 未超限，继续标记需要恢复
