@@ -5,7 +5,7 @@
 // ---- 任务周期配置（性能调优）----
 #define MONITOR_TASK_BASE_DELAY 10U   // 监控任务基础循环周期(ms)
 #define HEARTBEAT_INTERVAL_MS 1000U   // 心跳翻转间隔(ms)，产生系统活动指示
-#define STACK_CHECK_INTERVAL_SEC 60U  // 栈水位检查间隔(s)，定期检查任务栈使用情况
+#define STACK_CHECK_INTERVAL_SEC 10U  // 栈水位检查间隔(s)，定期检查任务栈使用情况（调试时可缩短为10s）
 #define IWDG_FEED_INTERVAL_MS 500U    // 看门狗喂狗间隔(ms)，须<IWDG超时时间(2秒)
 
 // ---- 栈水位预警阈值（单位：words，低于该值触发告警）----

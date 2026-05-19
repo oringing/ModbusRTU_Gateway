@@ -8,8 +8,8 @@
 
 // ---- 看门狗配置（系统稳定性）----
 #define SYSTEM_USE_IWDG 1U              // 1=启用硬件看门狗, 0=禁用（调试时可关闭）
-#define IWDG_RELOAD_VALUE 312U          // 看门狗重载值，LSI约40KHz，超时≈2秒
-// 计算公式：超时时间 = IWDG_RELOAD_VALUE * 256 / 40000 ≈ 2秒
+#define IWDG_RELOAD_VALUE 3000U          // 看门狗重载值，312* 256 / 40000 ≈ 2秒，超时≈2秒
+// 计算公式：超时时间 = IWDG_RELOAD_VALUE * 256 / 40000 (单位：秒)
 #define IWDG_WINDOW_VALUE 4095U         // 窗口值(最大值=禁用窗口功能)
 
 // ---- 配置合理性校验阈值（最小值约束，防止配置错误导致崩溃）----
@@ -89,14 +89,8 @@ void System_Check_Reset_Source(void);
 void System_Test_Watchdog_Reset(void);
 
 /**
- * @brief   系统初始化（时钟+看门狗+UART驱动）
- * @warning 需在FreeRTOS调度器启动前调用
- */
-void System_Init(void);
-
-/**
- * @brief   系统控制模块初始化（配置校验+系统初始化）
- * @warning 配置校验失败时进入安全模式
+ * @brief   系统控制模块初始化（配置校验+看门狗+复位检测）
+ * @warning 需在FreeRTOS调度器启动前调用；配置校验失败时进入安全模式
  */
 void System_Ctrl_Init(void);
 
@@ -151,19 +145,6 @@ uint32_t System_GetStackWatermark(osThreadId taskID);
  * @warning 低于阈值时输出告警日志，恢复时输出恢复日志
  */
 void System_Check_Stack_Watermark(void);
-
-/**
- * @brief   检测并打印上次复位原因
- * @note    在系统初始化早期调用，用于诊断复位来源
- */
-void System_Check_Reset_Source(void);
-
-/**
- * @brief   测试看门狗复位功能（危险操作，仅用于调试）
- * @warning 调用此函数后系统将不再喂狗，约2秒后会触发硬件复位
- * @note    建议在开发阶段使用，生产环境必须禁用
- */
-void System_Test_Watchdog_Reset(void);
 
 #ifdef __cplusplus
 }
