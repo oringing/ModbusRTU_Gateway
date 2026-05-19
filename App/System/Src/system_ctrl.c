@@ -9,6 +9,7 @@
 #include "monitor_task.h"
 #include "stdio.h"
 #include "stm32f1xx_hal_iwdg.h"
+#include "stm32f1xx_hal_rcc.h"
 #include "string.h"
 #include "system_config.h"
 #include "task.h"
@@ -45,6 +46,7 @@ static void       System_IWDG_Init(void);                                       
 
 // 系统初始化：时钟+看门狗+UART驱动（需在调度器启动前调用）
 void System_Init(void) {
+    System_Check_Reset_Source();  // 检测并打印复位原因
     System_IWDG_Init();           // 初始化看门狗
     (void)UART_Driver_Init();     // 初始化UART驱动
 }
@@ -435,5 +437,76 @@ void System_IWDG_Feed(void) {
     HAL_IWDG_Refresh(&hiwdg);
 #else
     // 看门狗禁用，什么都不做
+#endif
+}
+
+// 检测并打印上次复位原因，在系统初始化早期调用
+void System_Check_Reset_Source(void) {
+    uint32_t reset_flags = RCC->CSR;
+    char     log_buf[128];
+    bool     reset_detected = false;
+
+    // 1. 检查各种复位标志
+    if (reset_flags & RCC_CSR_IWDGRSTF) {
+        snprintf(log_buf, sizeof(log_buf), "[RESET] Independent Watchdog timeout\r\n");
+        System_Monitor_Log(log_buf);
+        reset_detected = true;
+    }
+
+    if (reset_flags & RCC_CSR_WWDGRSTF) {
+        snprintf(log_buf, sizeof(log_buf), "[RESET] Window Watchdog timeout\r\n");
+        System_Monitor_Log(log_buf);
+        reset_detected = true;
+    }
+
+    if (reset_flags & RCC_CSR_PORRSTF) {
+        snprintf(log_buf, sizeof(log_buf), "[RESET] Power-on/Power-down reset\r\n");
+        System_Monitor_Log(log_buf);
+        reset_detected = true;
+    }
+
+    if (reset_flags & RCC_CSR_PINRSTF) {
+        snprintf(log_buf, sizeof(log_buf), "[RESET] External NRST pin reset\r\n");
+        System_Monitor_Log(log_buf);
+        reset_detected = true;
+    }
+
+    if (reset_flags & RCC_CSR_SFTRSTF) {
+        snprintf(log_buf, sizeof(log_buf), "[RESET] Software reset (NVIC)\r\n");
+        System_Monitor_Log(log_buf);
+        reset_detected = true;
+    }
+
+    if (reset_flags & RCC_CSR_LPWRRSTF) {
+        snprintf(log_buf, sizeof(log_buf), "[RESET] Low-power mode reset\r\n");
+        System_Monitor_Log(log_buf);
+        reset_detected = true;
+    }
+
+    // 2. 首次上电无复位标志
+    if (!reset_detected) {
+        System_Monitor_Log("[RESET] First power-on (no reset flags)\r\n");
+    }
+
+    // 3. 清除所有复位标志，避免下次误判
+    RCC->CSR |= RCC_CSR_RMVF;
+}
+
+// 测试看门狗复位功能（危险操作，仅用于调试），调用后约2秒触发硬件复位
+void System_Test_Watchdog_Reset(void) {
+#if (SYSTEM_USE_IWDG == 1U)
+    System_Monitor_Log("WARN: Watchdog test started, system will reset in ~2 seconds\r\n");
+
+    // 关闭全局中断，确保没有其他代码喂狗
+    __disable_irq();
+
+    // 进入死循环，不再喂狗
+    while (1) {
+        // 短暂延时，避免CPU空转功耗过高
+        for (volatile uint32_t i = 0; i < 100000; i++)
+            ;
+    }
+#else
+    System_Monitor_Log("INFO: Watchdog disabled, cannot test reset\r\n");
 #endif
 }

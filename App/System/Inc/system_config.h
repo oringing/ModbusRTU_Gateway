@@ -14,8 +14,8 @@
 #define UART_TASK_STACK_SIZE   125U  // UART任务栈(words)，0.1s/帧高压峰值使用54words，剩余量≥57%
 #define MONITOR_TASK_STACK_SIZE 165U // Monitor任务栈(words)，空闲/高压均使用74words，剩余量≥55%
 
-// ---- 调试开关（可调整）----
-#define SYSTEM_UART_TEXT_LOG_ENABLE 0U // 串口文本日志开关，1=启用，0=禁用（生产环境建议关闭）
+// ---- 栈水位日志开关 ----
+#define SYSTEM_STACK_WATERMARK_LOG_ENABLE 0U  // 栈水位日志开关，1=启用，0=禁用（生产环境建议关闭）
 
 // ---- 超时配置（性能调优）----
 #define SYSTEM_TASK_STOP_TIMEOUT_MS 300U // 任务优雅退出等待超时(ms)

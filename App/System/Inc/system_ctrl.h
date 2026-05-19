@@ -76,6 +76,19 @@ void System_ResetTaskPriorities(void);
 void System_IWDG_Feed(void);
 
 /**
+ * @brief   检测并打印上次复位原因
+ * @note    在系统初始化早期调用，用于诊断复位来源
+ */
+void System_Check_Reset_Source(void);
+
+/**
+ * @brief   测试看门狗复位功能（危险操作，仅用于调试）
+ * @warning 调用此函数后系统将不再喂狗，约2秒后会触发硬件复位
+ * @note    建议在开发阶段使用，生产环境必须禁用
+ */
+void System_Test_Watchdog_Reset(void);
+
+/**
  * @brief   系统初始化（时钟+看门狗+UART驱动）
  * @warning 需在FreeRTOS调度器启动前调用
  */
@@ -138,6 +151,19 @@ uint32_t System_GetStackWatermark(osThreadId taskID);
  * @warning 低于阈值时输出告警日志，恢复时输出恢复日志
  */
 void System_Check_Stack_Watermark(void);
+
+/**
+ * @brief   检测并打印上次复位原因
+ * @note    在系统初始化早期调用，用于诊断复位来源
+ */
+void System_Check_Reset_Source(void);
+
+/**
+ * @brief   测试看门狗复位功能（危险操作，仅用于调试）
+ * @warning 调用此函数后系统将不再喂狗，约2秒后会触发硬件复位
+ * @note    建议在开发阶段使用，生产环境必须禁用
+ */
+void System_Test_Watchdog_Reset(void);
 
 #ifdef __cplusplus
 }
