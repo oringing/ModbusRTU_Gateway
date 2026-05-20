@@ -13,6 +13,11 @@
 #define MODBUS_SERVO_SPEED_MAX (255U)      // 速度最大值
 #define MODBUS_SERVO_SPEED_NEUTRAL (127U)  // 停止点（中位值）
 
+// ---- 360°舵机死区保护参数（防止临界值抖动）----
+#define MODBUS_SERVO_DEADZONE_RANGE (10U)   // 死区范围（±10档，对应约±80μs PWM变化）
+#define MODBUS_SERVO_SPEED_REV_LIMIT (117U)  // 反转有效下限（127-10），低于此值才执行反转
+#define MODBUS_SERVO_SPEED_FWD_LIMIT (137U)  // 正转有效上限（127+10），高于此值才执行正转
+
 // ---- 360°舵机PWM脉宽映射参数（标准SG90规格）----
 #define SERVO_360_PULSE_STOP_US (1500U)    // 停止脉宽(us)，对应中位1.5ms
 #define SERVO_360_PULSE_REV_MAX_US (2500U) // 最大反转脉宽(us)，对应2.5ms

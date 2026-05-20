@@ -14,6 +14,11 @@ void Servo_Driver_SetAngle(uint8_t channel, uint16_t angle) {
 void Servo_Driver_SetSpeed(uint8_t channel, uint8_t speed_val) {
     uint16_t pulse_us;
 
+    // 死区保护：强制临界值归零，避免机械抖动
+    if (speed_val > MODBUS_SERVO_SPEED_REV_LIMIT && speed_val < MODBUS_SERVO_SPEED_FWD_LIMIT) {
+        speed_val = MODBUS_SERVO_SPEED_NEUTRAL;  // 进入死区，强制停止
+    }
+
     if (speed_val < MODBUS_SERVO_SPEED_NEUTRAL) {
         // 反转区：线性映射 0→2500us(最快反转), 126→1500us(慢速反转)
         pulse_us =
