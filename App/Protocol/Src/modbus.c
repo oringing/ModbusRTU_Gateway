@@ -22,6 +22,7 @@ typedef struct {
 } ModbusRegister_t;
 
 static ModbusRegister_t holding_regs[MODBUS_REG_MAX_COUNT]; // 保持寄存器数组，受s_modbus_reg_mutex保护
+
 //（舵机寄存器默认值超出合法范围, 强制主机首次写入合法角度后舵机才能使用）
 static const uint16_t s_default_regs[] = {
     0x0000U,  // 对应地址 0x0000: AHT20 温度（预留）
