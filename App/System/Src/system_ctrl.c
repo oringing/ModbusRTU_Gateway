@@ -245,38 +245,26 @@ static void System_StopTaskIfRunning(osThreadId* task_handle) {
 
 // 校验系统配置参数是否在合理范围内（防止配置错误导致崩溃）
 static bool System_ValidateConfig(void) {
-    char log_buf[128];
-    
-    // === 编译期检查（宏定义冲突在编译时报错）===
-#if (MONITOR_TASK_STACK_SIZE < UART_TASK_STACK_SIZE)
+       // === 编译期检查（宏定义冲突在编译时报错）===
+#if (MONITOR_TASK_STACK_SIZE > UART_TASK_STACK_SIZE)
 #error "MONITOR_TASK_STACK_SIZE must be >= UART_TASK_STACK_SIZE"
 #endif
     
 #if (MODBUS_SLAVE_ADDR == 0U || MODBUS_SLAVE_ADDR > 247U)
 #error "MODBUS_SLAVE_ADDR must be in range [1, 247]"
 #endif
-
-    // === 运行时检查（动态配置或外部输入）===
-    
     // LED任务栈大小检查
     if (LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS) {
-
         System_Error_Log("CFG FAIL: LED_TASK_STACK_SIZE < LED_TASK_STACK_MIN_WORDS\r\n");
-
         return false;
     }
-    
     // UART任务栈大小检查
     if (UART_TASK_STACK_SIZE < UART_TASK_STACK_MIN_WORDS) {
-
         System_Error_Log("CFG FAIL: UART_TASK_STACK_SIZE < UART_TASK_STACK_MIN_WORDS\r\n");
-
         return false;
     }
-    
     // Monitor任务栈大小检查
     if (MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS) {
-
         System_Error_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS\r\n");
         return false;
     }
@@ -284,34 +272,22 @@ static bool System_ValidateConfig(void) {
     if (UART_TASK_STACK_SIZE < MONITOR_TASK_STACK_SIZE) {
         System_Error_Log("CFG WARN: UART_TASK_STACK_SIZE < MONITOR_TASK_STACK_SIZE (measured UART peak 82words > Monitor peak 40words)\r\n");
         // Note: Warning only, does not block startup as current config meets individual minimums
-
     }
-    
     // UART接收缓冲区大小检查
     if (BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE) {
-
         System_Error_Log("CFG FAIL: BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE\r\n");
-
-
         return false;
     }
-    
     // Modbus缓冲区大小检查
     if (MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE) {
-
         System_Error_Log("CFG FAIL: MODBUS_BUFFER_SIZE < MODBUS_BUFFER_MIN_SIZE\r\n");
-
-
         return false;
     }
 
 #pragma diag_suppress 111 // 抑制"语句不可达"警告
     // 防御性编程：即使当前配置不为0，也保留此检查，防止未来修改出错
     if (BSP_UART_TX_TIMEOUT < BSP_UART_TX_TIMEOUT_MIN_MS) {
-
         System_Error_Log("CFG FAIL: BSP_UART_TX_TIMEOUT == 0\r\n");
-
-
         return false;
     }
 
@@ -319,13 +295,10 @@ static bool System_ValidateConfig(void) {
 
     // 任务停止超时检查
     if (SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS) {
-
         System_Error_Log(
             "CFG FAIL: SYSTEM_TASK_STOP_TIMEOUT_MS < SYSTEM_TASK_STOP_TIMEOUT_MIN_MS\r\n");
-
         return false;
     }
-    
     return true;
 }
 

@@ -64,7 +64,11 @@ void Modbus_Init(void) {
         holding_regs[i].default_value = s_default_regs[i];
     }
 
-    holding_regs[MODBUS_REG_ADDR_DEVICE_STATUS].read_only = true;
+    // 设置只读寄存器（与文档保持一致）
+    holding_regs[MODBUS_REG_ADDR_SENSOR_TEMP].read_only = true;     // 0x0000: AHT20温度（预留）
+    holding_regs[MODBUS_REG_ADDR_SENSOR_HUMIDITY].read_only = true; // 0x0001: AHT20湿度（预留）
+    holding_regs[MODBUS_REG_ADDR_SENSOR_PRESSURE].read_only = true; // 0x0002: BMP280气压（预留）
+    holding_regs[MODBUS_REG_ADDR_DEVICE_STATUS].read_only = true;   // 0x0003: 系统状态寄存器
 
     Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_TARGET, Modbus_OnServoTargetChanged);
     Modbus_RegisterOnChange(MODBUS_REG_ADDR_SERVO_SPEED, Modbus_OnServoSpeedChanged);
