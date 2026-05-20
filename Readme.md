@@ -119,7 +119,7 @@ ModbusRTU_Gateway/
 - **代码规范**: 注释分级规范 v2.2 + .clang-format（Linux 内核风格）
 
 ## 实物展示
-![整体外形图](images/整体外形图.png)
+![整体外形图](docs/images/整体外形图.png)
 
 ## 🎯 下一步演进方向
 
