@@ -369,7 +369,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F103xB</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Drivers/STM32F1xx_HAL_Driver/Inc;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../Bsp/Inc;../App/Driver/Inc;../App/Protocol/Inc;../App/System/Inc;../App/Task/Inc</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy;../Drivers/STM32F1xx_HAL_Driver/Inc;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM3;../Drivers/CMSIS/Device/ST/STM32F1xx/Include;../Drivers/CMSIS/Include;../Bsp/Inc;../App/Driver/Inc;../App/Protocol/Inc;../App/System/Inc;../App/Task/Inc;../App/Test/Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -681,6 +681,16 @@
               <FileName>driver_servo.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\App\Driver\Src\driver_servo.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>App/Test</GroupName>
+          <Files>
+            <File>
+              <FileName>test_validation.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Test\Src\test_validation.c</FilePath>
             </File>
           </Files>
         </Group>

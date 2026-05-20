@@ -5,13 +5,13 @@
 // ---- 任务周期配置（性能调优）----
 #define MONITOR_TASK_BASE_DELAY 10U   // 监控任务基础循环周期(ms)
 #define HEARTBEAT_INTERVAL_MS 1000U   // 心跳翻转间隔(ms)，产生系统活动指示
-#define STACK_CHECK_INTERVAL_SEC 60U  // 栈水位检查间隔(s)，定期检查任务栈使用情况
-#define IWDG_FEED_INTERVAL_MS 500U    // 看门狗喂狗间隔(ms)，须<IWDG超时时间(2秒)
+#define STACK_CHECK_INTERVAL_SEC 10U  // 栈水位检查间隔(s)，定期检查任务栈使用情况（调试时可缩短为10s）
+#define IWDG_FEED_INTERVAL_MS 3000U    // 看门狗喂狗间隔(ms)，须<IWDG超时时间(5秒)
 
-// ---- 栈水位预警阈值（单位：words，低于该值触发告警）----
-#define LED_STACK_WM_WARN_WORDS 24U      // LED任务栈告警阈值
-#define UART_STACK_WM_WARN_WORDS 48U     // UART任务栈告警阈值
-#define MONITOR_STACK_WM_WARN_WORDS 96U  // Monitor任务栈告警阈值
+// ---- 栈水位预警阈值（单位：words，低于该值触发告警，2026-05-18实测数据）----
+#define LED_STACK_WM_WARN_WORDS 34U      // LED任务栈告警阈值（实测峰值28×1.2≈34）
+#define UART_STACK_WM_WARN_WORDS 98U     // UART任务栈告警阈值（实测峰值82×1.2≈98）
+#define MONITOR_STACK_WM_WARN_WORDS 48U  // Monitor任务栈告警阈值（实测峰值40×1.2≈48）
 
 #ifdef __cplusplus
 extern "C" {

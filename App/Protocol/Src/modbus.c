@@ -22,8 +22,17 @@ typedef struct {
 } ModbusRegister_t;
 
 static ModbusRegister_t holding_regs[MODBUS_REG_MAX_COUNT]; // 保持寄存器数组，受s_modbus_reg_mutex保护
-static const uint16_t   s_default_regs[] = {0x0000U, 0x1000U, 0x2000U, 0x3000U,
-                                            0x4000U}; // 前5个寄存器的默认初始值
+
+//（舵机寄存器默认值超出合法范围, 强制主机首次写入合法角度后舵机才能使用）
+static const uint16_t s_default_regs[] = {
+    0x0000U,  // 对应地址 0x0000: AHT20 温度（预留）
+    0x1000U,  // 对应地址 0x0001: AHT20 湿度（预留）
+    0x2000U,  // 对应地址 0x0002: BMP280 气压（预留）
+    0x3000U,  // 对应地址 0x0003: 系统状态寄存器（心跳+标志位）
+    0x4000U,   // 对应地址 0x0004: 180° 舵机目标角度
+    0x5000U   // 对应地址 0x0005: 360° 舵机速度/方向
+};
+//剩余地址0x0007-0x0009寄存器值默认为0x0000
 
 // 内部函数声明
 static bool Modbus_ValidateFrame(const uint8_t* frame, uint16_t frame_len, uint8_t* func_code);
@@ -268,6 +277,16 @@ bool Modbus_WriteHoldingRegister(uint16_t addr, uint16_t value) {
         return false;
     }
 
+    // 舵机目标角度范围校验（0-180度）
+    if (addr == MODBUS_REG_ADDR_SERVO_TARGET && value > MODBUS_SERVO_TARGET_MAX) {
+        return false;
+    }
+
+    // 舵机速度范围校验（0-255）
+    if (addr == MODBUS_REG_ADDR_SERVO_SPEED && value > MODBUS_SERVO_SPEED_MAX) {
+        return false;
+    }
+
     if (!Modbus_LockRegisters()) {
         return false;
     }
@@ -346,26 +365,13 @@ void Modbus_Process(void) {
 
 // 舵机目标角度回调（通道1-PA6，180°舵机，范围0-180度）
 static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value) {
-    if (old_value == new_value) {
-        return;
-    }
-
-    if (new_value > MODBUS_SERVO_TARGET_MAX) {
-        return;
-    }
-
+    (void)old_value;
     Servo_Driver_SetAngle(1U, new_value);
 }
 
 // 360°舵机速度回调（通道2-PA7，连续旋转，范围0-255）
 static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value) {
-    if (old_value == new_value) {
-        return;
-    }
-
-    if (new_value > MODBUS_SERVO_SPEED_MAX) {
-        return;
-    }
-
+    (void)old_value;
+    // 死区保护已在驱动层实现，此处直接调用
     Servo_Driver_SetSpeed(2U, (uint8_t)new_value);
 }

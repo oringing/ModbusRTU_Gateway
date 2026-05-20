@@ -9,13 +9,16 @@
 #define UART_TASK_PRIORITY     osPriorityNormal     // UART任务优先级（正常，需及时响应Modbus请求）
 #define MONITOR_TASK_PRIORITY  osPriorityBelowNormal // Monitor任务优先级（低于正常，后台监控）
 
-// ---- 任务栈大小配置（基于实测水位+1.3倍安全裕度）----
-#define LED_TASK_STACK_SIZE    64U   // LED任务栈(words)，空闲/高压均使用28words，剩余量≥56%
-#define UART_TASK_STACK_SIZE   125U  // UART任务栈(words)，0.1s/帧高压峰值使用54words，剩余量≥57%
-#define MONITOR_TASK_STACK_SIZE 165U // Monitor任务栈(words)，空闲/高压均使用74words，剩余量≥55%
+// ---- 任务栈大小配置（实测数据（2026-05-18）：）----
+#define LED_TASK_STACK_SIZE    64U   // LED任务栈(words)，实测峰值28words，安全裕度56%
+#define UART_TASK_STACK_SIZE   160U  // UART任务栈(words)，实测峰值82words(高压78words剩余)，安全裕度51%
+#define MONITOR_TASK_STACK_SIZE 96U  // Monitor任务栈(words)，实测峰值40words，安全裕度58%
 
-// ---- 调试开关（可调整）----
-#define SYSTEM_UART_TEXT_LOG_ENABLE 0U // 串口文本日志开关，1=启用，0=禁用（生产环境建议关闭）
+// ---- 栈水位日志开关 ----
+#define SYSTEM_STACK_WATERMARK_LOG_ENABLE 0U  // 栈水位日志开关，1=启用，0=禁用（生产环境建议关闭）
+
+// ---- 系统日志开关 ----
+#define SYSTEM_UART_TEXT_LOG_ENABLE 1U  // UART文本日志总开关，1=启用所有UART日志，0=禁用（生产环境可关闭以节省带宽）
 
 // ---- 超时配置（性能调优）----
 #define SYSTEM_TASK_STOP_TIMEOUT_MS 300U // 任务优雅退出等待超时(ms)

@@ -20,7 +20,15 @@ void Start_Monitor_Task(void const* argument) {
     last_feed_tick = osKernelSysTick();
     last_stack_check_tick = osKernelSysTick();
 
+    // 清除停止标志（任务启动时确保可运行）
+    s_monitor_task_stop = 0U;
+
     for (;;) {
+        // 检查停止标志，实现优雅退出
+        if (s_monitor_task_stop != 0U) {
+            break; // 跳出循环，执行清理逻辑
+        }
+
         uint32_t current_tick = osKernelSysTick();
 
         // 1. 心跳逻辑：每秒翻转DEVICE_STATUS寄存器低4位（系统活动指示）
@@ -48,6 +56,7 @@ void Start_Monitor_Task(void const* argument) {
         // 基础循环延时，保持任务活跃并让出CPU
         osDelay(MONITOR_TASK_BASE_DELAY);
     }
+
 }
 
 void Monitor_Task_RequestStop(void) {

@@ -8,14 +8,14 @@
 
 // ---- 看门狗配置（系统稳定性）----
 #define SYSTEM_USE_IWDG 1U              // 1=启用硬件看门狗, 0=禁用（调试时可关闭）
-#define IWDG_RELOAD_VALUE 312U          // 看门狗重载值，LSI约40KHz，超时≈2秒
-// 计算公式：超时时间 = IWDG_RELOAD_VALUE * 256 / 40000 ≈ 2秒
+// 看门狗超时时间 ≈ IWDG_RELOAD_VALUE(781) * 256 / 40000 秒 ≈ 5秒
+#define IWDG_RELOAD_VALUE 781U          // 看门狗重载值，5秒超时
 #define IWDG_WINDOW_VALUE 4095U         // 窗口值(最大值=禁用窗口功能)
 
-// ---- 配置合理性校验阈值（最小值约束，防止配置错误导致崩溃）----
-#define LED_TASK_STACK_MIN_WORDS 48U        // LED任务最小栈大小(words)
-#define UART_TASK_STACK_MIN_WORDS 96U       // UART任务最小栈大小(words)
-#define MONITOR_TASK_STACK_MIN_WORDS 128U   // Monitor任务最小栈大小(words)
+// ---- 配置合理性校验阈值（最小值约束，防止配置错误导致崩溃），2026-05-18实测数据，峰值测试为每秒收发100帧----
+#define LED_TASK_STACK_MIN_WORDS 42U        // LED任务最小栈大小(words)，实测峰值28×1.5≈42
+#define UART_TASK_STACK_MIN_WORDS 123U      // UART任务最小栈大小(words)，实测峰值82×1.5≈123
+#define MONITOR_TASK_STACK_MIN_WORDS 60U    // Monitor任务最小栈大小(words)，实测峰值40×1.5≈60
 #define BSP_UART_RX_BUF_MIN_SIZE 256U       // UART接收缓冲区最小尺寸(bytes)
 #define MODBUS_BUFFER_MIN_SIZE 256U         // Modbus缓冲区最小尺寸(bytes)
 #define BSP_UART_TX_TIMEOUT_MIN_MS 1U       // UART发送超时最小值(ms)，不能为0
@@ -76,14 +76,21 @@ void System_ResetTaskPriorities(void);
 void System_IWDG_Feed(void);
 
 /**
- * @brief   系统初始化（时钟+看门狗+UART驱动）
- * @warning 需在FreeRTOS调度器启动前调用
+ * @brief   检测并打印上次复位原因
+ * @note    在系统初始化早期调用，用于诊断复位来源
  */
-void System_Init(void);
+void System_Check_Reset_Source(void);
 
 /**
- * @brief   系统控制模块初始化（配置校验+系统初始化）
- * @warning 配置校验失败时进入安全模式
+ * @brief   测试看门狗复位功能（危险操作，仅用于调试）
+ * @warning 调用此函数后系统将不再喂狗，约2秒后会触发硬件复位
+ * @note    建议在开发阶段使用，生产环境必须禁用
+ */
+void System_Test_Watchdog_Reset(void);
+
+/**
+ * @brief   系统控制模块初始化（配置校验+看门狗+复位检测）
+ * @warning 需在FreeRTOS调度器启动前调用；配置校验失败时进入安全模式
  */
 void System_Ctrl_Init(void);
 
