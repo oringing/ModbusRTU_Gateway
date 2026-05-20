@@ -268,6 +268,16 @@ bool Modbus_WriteHoldingRegister(uint16_t addr, uint16_t value) {
         return false;
     }
 
+    // 舵机目标角度范围校验（0-180度）
+    if (addr == MODBUS_REG_ADDR_SERVO_TARGET && value > MODBUS_SERVO_TARGET_MAX) {
+        return false;
+    }
+
+    // 舵机速度范围校验（0-255）
+    if (addr == MODBUS_REG_ADDR_SERVO_SPEED && value > MODBUS_SERVO_SPEED_MAX) {
+        return false;
+    }
+
     if (!Modbus_LockRegisters()) {
         return false;
     }
@@ -346,26 +356,13 @@ void Modbus_Process(void) {
 
 // 舵机目标角度回调（通道1-PA6，180°舵机，范围0-180度）
 static void Modbus_OnServoTargetChanged(uint16_t old_value, uint16_t new_value) {
-    if (old_value == new_value) {
-        return;
-    }
-
-    if (new_value > MODBUS_SERVO_TARGET_MAX) {
-        return;
-    }
-
+    (void)old_value;
     Servo_Driver_SetAngle(1U, new_value);
 }
 
 // 360°舵机速度回调（通道2-PA7，连续旋转，范围0-255）
 static void Modbus_OnServoSpeedChanged(uint16_t old_value, uint16_t new_value) {
-    if (old_value == new_value) {
-        return;
-    }
-
-    if (new_value > MODBUS_SERVO_SPEED_MAX) {
-        return;
-    }
-
+    (void)old_value;
+    // 死区保护已在驱动层实现，此处直接调用
     Servo_Driver_SetSpeed(2U, (uint8_t)new_value);
 }
