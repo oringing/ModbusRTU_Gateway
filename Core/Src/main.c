@@ -13,7 +13,7 @@
 #include "system_config.h"
 #include "system_ctrl.h"
 #include "uart.h"
-#include "i2c.h"
+#include "soft_i2c.h"
 #include "aht20.h"
 #include "bmp280.h"
 
@@ -34,7 +34,7 @@ int main(void) {
     BSP_LED_Init();
     BSP_UART_Init();
     BSP_Servo_Init();
-    BSP_I2C_Init();
+    I2C_Bus_Init();
     AHT20_Init();
     BMP280_Init();
 
