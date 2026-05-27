@@ -55,6 +55,10 @@ extern "C" {
 #define BMP280_FORCED_MODE           (0x01U)
 #define BMP280_NORMAL_MODE           (0x03U)
 
+// ---- CONFIG 寄存器配置 ----
+#define BMP280_STANDBY_62_5MS        (0x01U << 5)
+#define BMP280_FILTER_COEFF_8        (0x03U << 2)
+
 // ---- 过采样 ----
 #define BMP280_OVERSAMP_SKIPPED      (0x00U)
 #define BMP280_OVERSAMP_1X           (0x01U)

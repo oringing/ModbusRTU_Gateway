@@ -1,7 +1,8 @@
 // Bsp/Src/soft_i2c.c
 #include "soft_i2c.h"
+#include "stm32f1xx_hal.h"
 
-#define mdelay(ms) HAL_Delay(ms)
+// I2C retry timing macros moved to soft_i2c.h
 
 // 基于逻辑分析仪实测校准：72MHz 主频下，该循环约 5μs
 // 满足 I2C 100kHz 标准要求（tLOW≥4.7μs，tHIGH≥4.0μs）
@@ -12,7 +13,7 @@ static void Soft_I2C_Delay(void)
     }
 }
 
-static unsigned short RETRY_IN_MLSEC = 55;   // 默认重试间隔 55ms
+static unsigned short RETRY_IN_MLSEC = I2C_DEFAULT_RETRY_MS;   // 默认重试间隔 55ms
 
 void Set_I2C_Retry(unsigned short ml_sec)
 {
@@ -112,7 +113,7 @@ static uint8_t Soft_I2C_WaitAck(void)
 
     while (SOFT_I2C_SDA_READ) {
         timeout++;
-        if (timeout > 250) {
+        if (timeout > I2C_WAIT_ACK_MAX_RETRY) {
             Soft_I2C_Stop();
             return 2;   // 无应答超时
         }
@@ -251,31 +252,31 @@ static uint8_t Soft_I2C_ReadReg(uint8_t dev_addr, uint8_t reg_addr,
     return 0;
 }
 
-int Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr,
+bool Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr,
                                unsigned short len, const unsigned char *data_ptr)
 {
-    int ret;
+    bool ret;
     unsigned short retry = Get_I2C_Retry();
 
     do {
-        ret = Soft_I2C_WriteReg(slave_addr, reg_addr, len, data_ptr);
-        if (!ret) break;
-        mdelay(retry);
+        ret = (Soft_I2C_WriteReg(slave_addr, reg_addr, len, data_ptr) == 0);
+        if (ret) break;
+        HAL_Delay(retry);
     } while (retry);
 
     return ret;
 }
 
-int Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr,
+bool Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr,
                               unsigned short len, unsigned char *data_ptr)
 {
-    int ret;
+    bool ret;
     unsigned short retry = Get_I2C_Retry();
 
     do {
-        ret = Soft_I2C_ReadReg(slave_addr, reg_addr, len, data_ptr);
-        if (!ret) break;
-        mdelay(retry);
+        ret = (Soft_I2C_ReadReg(slave_addr, reg_addr, len, data_ptr) == 0);
+        if (ret) break;
+        HAL_Delay(retry);
     } while (retry);
 
     return ret;
@@ -303,26 +304,7 @@ static uint8_t Soft_I2C_WriteCmd(uint8_t dev_addr, uint16_t len, const uint8_t *
     return 0;
 }
 
-int Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char *data,
-                              unsigned short len)
-{
-    int ret;
-    unsigned short retry = Get_I2C_Retry();
-
-    if (data == NULL || len == 0) return 1;
-
-    do {
-        ret = Soft_I2C_WriteCmd(slave_addr, len, data);
-        if (!ret) break;
-        mdelay(retry);
-    } while (retry);
-
-    return ret;
-}
-
-// 先写命令再读数据：START + 写地址 + 命令 + RESTART + 读地址 + 数据 + STOP
-static uint8_t Soft_I2C_ReadCmdData(uint8_t dev_addr, uint8_t cmd,
-                                     uint16_t len, uint8_t *data)
+static uint8_t Soft_I2C_WriteAddrAndCmd(uint8_t dev_addr, uint8_t cmd)
 {
     uint8_t result;
 
@@ -334,6 +316,13 @@ static uint8_t Soft_I2C_ReadCmdData(uint8_t dev_addr, uint8_t cmd,
 
     result = Soft_I2C_SendByte(cmd);
     if (result) { Soft_I2C_Stop(); return result; }
+
+    return 0;
+}
+
+static uint8_t Soft_I2C_RestartAndRead(uint8_t dev_addr, uint16_t len, uint8_t *data)
+{
+    uint8_t result;
 
     result = Soft_I2C_Start();
     if (result) { Soft_I2C_Stop(); return result; }
@@ -355,16 +344,45 @@ static uint8_t Soft_I2C_ReadCmdData(uint8_t dev_addr, uint8_t cmd,
     return 0;
 }
 
-int Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd,
+static uint8_t Soft_I2C_ReadCmdData(uint8_t dev_addr, uint8_t cmd,
+                                     uint16_t len, uint8_t *data)
+{
+    uint8_t result;
+
+    result = Soft_I2C_WriteAddrAndCmd(dev_addr, cmd);
+    if (result) return result;
+
+    result = Soft_I2C_RestartAndRead(dev_addr, len, data);
+    return result;
+}
+
+bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char *data,
+                              unsigned short len)
+{
+    bool ret;
+    unsigned short retry = Get_I2C_Retry();
+
+    if (data == NULL || len == 0) return false;
+
+    do {
+        ret = (Soft_I2C_WriteCmd(slave_addr, len, data) == 0);
+        if (ret) break;
+        HAL_Delay(retry);
+    } while (retry);
+
+    return ret;
+}
+
+bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd,
                                  unsigned char *data, unsigned short len)
 {
-    int ret;
+    bool ret;
     unsigned short retry = Get_I2C_Retry();
 
     do {
-        ret = Soft_I2C_ReadCmdData(slave_addr, cmd, len, data);
-        if (!ret) break;
-        mdelay(retry);
+        ret = (Soft_I2C_ReadCmdData(slave_addr, cmd, len, data) == 0);
+        if (ret) break;
+        HAL_Delay(retry);
     } while (retry);
 
     return ret;
