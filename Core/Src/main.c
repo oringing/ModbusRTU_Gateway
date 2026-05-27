@@ -13,11 +13,8 @@
 #include "system_config.h"
 #include "system_ctrl.h"
 #include "uart.h"
-
-// ✅ 新增：传感器驱动头文件（后续 I2C 传感器接入时使用）
-// #include "aht20.h"
-// #include "bmp280.h"
-
+#include "i2c.h"
+#include "aht20.h"
 /* USER CODE END Includes */
 
 void SystemClock_Config(void);
@@ -35,6 +32,7 @@ int main(void) {
     BSP_LED_Init();
     BSP_UART_Init();
     BSP_Servo_Init();
+    BSP_I2C_Init();
 
     // 4. 协议层初始化（Modbus寄存器+回调）
     Modbus_Init();
