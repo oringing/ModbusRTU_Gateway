@@ -408,11 +408,3 @@ void SystemInit_ExtMemCtl(void)
 // 此文件用于记录 CubeMX 代码生成时的手动代码保护策略
 // 详细说明请参见 docs/CUBEMX_PROTECTION_GUIDE.md
 
-/* 
- * Core 目录保护要点：
- * 1. 所有手动代码必须写在 USER CODE BEGIN/END 块内
- * 2. main.c 中的 Sensor_System_Init() 框架已添加
- * 3. stm32f1xx_hal_conf.h 中已启用 HAL_I2C_MODULE_ENABLED
- * 4. 严禁手动修改 stm32f1xx_hal_msp.c 中的 MSP 初始化函数
- * 5. 严禁在 freertos.c 中添加业务逻辑代码
- */
