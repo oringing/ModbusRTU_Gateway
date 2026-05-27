@@ -14,6 +14,10 @@
 #include "system_ctrl.h"
 #include "uart.h"
 
+// ✅ 新增：传感器驱动头文件（后续 I2C 传感器接入时使用）
+// #include "aht20.h"
+// #include "bmp280.h"
+
 /* USER CODE END Includes */
 
 void SystemClock_Config(void);
@@ -81,3 +85,22 @@ void SystemClock_Config(void) {
         Error_Handler();
     }
 }
+
+/* USER CODE BEGIN EFP */
+// ✅ 新增：传感器系统初始化函数声明（后续实现）
+void Sensor_System_Init(void);
+
+/* USER CODE END EFP */
+
+/* USER CODE BEGIN 4 */
+// ✅ 新增：传感器系统初始化函数实现（后续补充具体代码）
+void Sensor_System_Init(void) {
+    // TODO: 后续在此处添加 AHT20/BMP280 初始化代码
+    // if (AHT20_Init() != HAL_OK) {
+    //     Error_Handler();
+    // }
+    // if (BMP280_Init() != HAL_OK) {
+    //     Error_Handler();
+    // }
+}
+/* USER CODE END 4 */
