@@ -2,7 +2,6 @@
 #ifndef __SOFT_I2C_H__
 #define __SOFT_I2C_H__
 
-#include "stm32f1xx_hal.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -21,6 +20,10 @@ extern "C" {
 #define SOFT_I2C_SDA_0       HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_RESET)     // SDA 置低
 #define SOFT_I2C_SDA_1       HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_SET)       // SDA 置高
 #define SOFT_I2C_SDA_READ    HAL_GPIO_ReadPin(SOFT_I2C_PORT, SOFT_I2C_SDA)         // 读取 SDA 电平（0 或 1）
+
+// I2C timing/retry macros
+#define I2C_WAIT_ACK_MAX_RETRY 250U
+#define I2C_DEFAULT_RETRY_MS 55U
 
 /**
  * @brief   初始化软件 I2C 总线
@@ -47,10 +50,11 @@ unsigned short Get_I2C_Retry(void);
  * @param   reg_addr   寄存器起始地址（8 位）
  * @param   len        要读取的字节数（1~32）
  * @param   data_ptr   数据缓冲区指针，长度至少为 len
- * @return  0 = 成功，非 0 = 失败（超时或无应答）
+ * @return  true  = 成功
+ * @return  false = 失败（超时或无应答）
  * @note    用于寄存器式设备（如 BMP280），不支持命令式传感器
  */
-int Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr,
+bool Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr,
                              unsigned short len, unsigned char *data_ptr);
 
 /**
@@ -59,9 +63,10 @@ int Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr,
  * @param   reg_addr   寄存器起始地址（8 位）
  * @param   len        写入字节数（1~32）
  * @param   data_ptr   待写入数据指针
- * @return  0 = 成功，非 0 = 失败
+ * @return  true  = 成功
+ * @return  false = 失败
  */
-int Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr,
+bool Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr,
                               unsigned short len, const unsigned char *data_ptr);
 
 /**
@@ -69,10 +74,10 @@ int Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr,
  * @param   slave_addr 从机地址（7 位，不含 R/W 位）
  * @param   data       命令字节数组（首字节通常为命令码）
  * @param   len        命令长度（字节数）
- * @return  0 = 成功，非 0 = 失败
- * @note    用于 AHT20 等先写命令再读数据的器件
+ * @return  true  = 成功
+ * @return  false = 失败
  */
-int Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char *data,
+bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char *data,
                              unsigned short len);
 
 /**
@@ -81,10 +86,11 @@ int Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char *data
  * @param   cmd        单字节命令（如 0x71 读取状态、0xAC 触发测量）
  * @param   data       数据缓冲区指针，长度至少为 len
  * @param   len        要读取的字节数（AHT20 读取测量结果时为 6）
- * @return  0 = 成功，非 0 = 失败
+ * @return  true  = 成功
+ * @return  false = 失败
  * @note    底层实现：START + Addr(W) + cmd + RESTART + Addr(R) + read(len)
  */
-int Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd,
+bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd,
                                 unsigned char *data, unsigned short len);
 
 #ifdef __cplusplus
