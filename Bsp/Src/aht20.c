@@ -1,12 +1,11 @@
-//Bsp/Src/aht20.c
+// Bsp/Src/aht20.c
 #include "aht20.h"
 #include "soft_i2c.h"
-#include "uart.h"
 #include "stm32f1xx_hal.h"
+#include "uart.h"
 
-// 发送命令（无寄存器地址，直接写命令字节）
-static bool AHT20_SendCmd(uint8_t cmd, const uint8_t *param, uint8_t param_len)
-{
+// 发送命令（无寄存器地址，直接写命令字节）， 用于 AHT20 的命令型交互（如触发测量、软复位）
+static bool AHT20_SendCmd(uint8_t cmd, const uint8_t* param, uint8_t param_len) {
     uint8_t buf[3];
     uint8_t total = 1 + param_len;
 
@@ -22,58 +21,52 @@ static bool AHT20_SendCmd(uint8_t cmd, const uint8_t *param, uint8_t param_len)
     return Sensors_I2C_WriteCommand(AHT20_I2C_ADDR, buf, total);
 }
 
-// 读取测量结果（先写 0x71 命令，再读 6 字节）
-static bool AHT20_ReadMeasurement(uint8_t *data)
-{
+// 读取测量结果（先写 0x71 命令，再读 6 字节），调用时需保证 data 有至少 6 字节缓冲
+static bool AHT20_ReadMeasurement(uint8_t* data) {
     if (data == NULL) {
         return false;
     }
     return Sensors_I2C_ReadCommandData(AHT20_I2C_ADDR, AHT20_CMD_STATUS, data, 6);
 }
 
-// 读取单字节状态
-static bool AHT20_ReadStatus(uint8_t *status)
-{
+// 读取单字节状态，通过 Sensors_I2C_ReadCommandData 读取状态寄存器
+static bool AHT20_ReadStatus(uint8_t* status) {
     if (status == NULL) {
         return false;
     }
     return Sensors_I2C_ReadCommandData(AHT20_I2C_ADDR, AHT20_CMD_STATUS, status, 1);
 }
 
-// 解析原始数据
-static bool AHT20_ParseData(const uint8_t *raw, float *temp, float *humi)
-{
+// 解析原始测量数据并做合理性校验，按数据手册拆分 20 位湿度和 20 位温度原始值，转换为工程量并校验范围
+static bool AHT20_ParseData(const uint8_t* raw, float* temp, float* humi) {
     uint32_t hum_raw, temp_raw;
 
-    hum_raw = ((uint32_t)raw[1] << 12) |
-              ((uint32_t)raw[2] << 4) |
-              ((uint32_t)raw[3] >> 4);
+    hum_raw = ((uint32_t)raw[1] << 12) | ((uint32_t)raw[2] << 4) | ((uint32_t)raw[3] >> 4);
 
-    temp_raw = ((uint32_t)(raw[3] & 0x0FU) << 16) |
-               ((uint32_t)raw[4] << 8) |
-               (uint32_t)raw[5];
+    temp_raw = ((uint32_t)(raw[3] & 0x0FU) << 16) | ((uint32_t)raw[4] << 8) | (uint32_t)raw[5];
 
     *humi = (float)hum_raw * AHT20_HUMIDITY_FACTOR / AHT20_DATA_SCALE;
     *temp = (float)temp_raw * AHT20_TEMP_FACTOR / AHT20_DATA_SCALE - AHT20_TEMP_OFFSET;
 
-    if (*temp < AHT20_TEMP_MIN || *temp > AHT20_TEMP_MAX) return false;
-    if (*humi < AHT20_HUMI_MIN || *humi > AHT20_HUMI_MAX) return false;
+    if (*temp < AHT20_TEMP_MIN || *temp > AHT20_TEMP_MAX)
+        return false;
+    if (*humi < AHT20_HUMI_MIN || *humi > AHT20_HUMI_MAX)
+        return false;
 
     return true;
 }
 
-static bool AHT20_IsCalibrated(uint8_t status)
-{
+// 判断校准位（Bit3）是否已完成
+static bool AHT20_IsCalibrated(uint8_t status) {
     return ((status & 0x08U) != 0U);
 }
 
-static bool AHT20_IsIdle(uint8_t status)
-{
+// 判断传感器是否空闲（measuring 位为 0）
+static bool AHT20_IsIdle(uint8_t status) {
     return ((status & 0x80U) == 0U);
 }
 
-bool AHT20_Init(void)
-{
+bool AHT20_Init(void) {
     uint8_t status = 0;
 
     HAL_Delay(AHT20_POWER_UP_DELAY_MS);
@@ -84,7 +77,8 @@ bool AHT20_Init(void)
     }
 
     for (uint8_t i = 0; i < 10; i++) {
-        if (AHT20_IsIdle(status)) break;
+        if (AHT20_IsIdle(status))
+            break;
         HAL_Delay(10);
         if (!AHT20_ReadStatus(&status)) {
             BSP_UART_PrintString("AHT20 init failed: read status retry\r\n");
@@ -111,13 +105,13 @@ bool AHT20_Init(void)
     return true;
 }
 
-bool AHT20_Read(float *temp, float *humi)
-{
+bool AHT20_Read(float* temp, float* humi) {
     uint8_t raw_data[6] = {0};
     uint8_t measure_param[2] = {AHT20_MEASURE_DATA0, AHT20_MEASURE_DATA1};
     uint8_t status = 0;
 
-    if (temp == NULL || humi == NULL) return false;
+    if (temp == NULL || humi == NULL)
+        return false;
 
     if (!AHT20_SendCmd(AHT20_CMD_MEASURE, measure_param, 2)) {
         BSP_UART_PrintString("AHT20 read failed: send measure command\r\n");
@@ -131,7 +125,8 @@ bool AHT20_Read(float *temp, float *humi)
             BSP_UART_PrintString("AHT20 read failed: status polling\r\n");
             return false;
         }
-        if (AHT20_IsIdle(status)) break;
+        if (AHT20_IsIdle(status))
+            break;
         HAL_Delay(10);
     }
 

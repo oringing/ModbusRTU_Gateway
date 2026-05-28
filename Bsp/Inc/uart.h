@@ -27,23 +27,23 @@
 #define BSP_UART_TX_TIMEOUT (5U)    // UART发送超时(ms)，避免阻塞任务调度
 
 // ---- 故障恢复配置（性能调优）----
-#define UART_SUCCESS_RX_RECOVER_COUNT (5U)  // 连续成功接收次数判定为故障恢复
-#define UART_MAX_RECOVERY_RETRY (10U)       // 故障恢复最大重试次数
-#define UART_RECOVERY_RETRY_DELAY_MS (10U)  // 每次重试之间的延时(ms)
+#define UART_SUCCESS_RX_RECOVER_COUNT (5U) // 连续成功接收次数判定为故障恢复
+#define UART_MAX_RECOVERY_RETRY (10U)      // 故障恢复最大重试次数
+#define UART_RECOVERY_RETRY_DELAY_MS (10U) // 每次重试之间的延时(ms)
 
 // ---- 故障指示配置（调试用）----
 #define UART_FAULT_BLINK_COUNT (5U)         // 故障指示LED闪烁次数
 #define UART_FAULT_BLINK_INTERVAL_MS (100U) // 故障指示LED闪烁间隔(ms)
 
 // ---- 日志限流配置（防止刷屏）----
-#define UART_LOG_THROTTLE_MS (1000U)        // 错误日志打印限流时间(ms)
-#define UART_ERROR_LOG_THROTTLE_MS (1000U)  // 错误日志打印限流时间(ms) - 兼容旧命名
+#define UART_LOG_THROTTLE_MS (1000U)       // 错误日志打印限流时间(ms)
+#define UART_ERROR_LOG_THROTTLE_MS (1000U) // 错误日志打印限流时间(ms) - 兼容旧命名
 
 // ---- 错误分级处理阈值（协议容错）----
-#define UART_ERROR_STREAK_RECOVER_TH (10U)  // 总错误连续次数阈值（触发恢复）
-#define UART_FE_RECOVER_STREAK_TH (3U)      // FE/NE连续错误次数阈值（触发恢复）
-#define UART_PE_RECOVER_STREAK_TH (5U)      // PE连续错误次数阈值（触发恢复）
-#define UART_IRQ_REENTRY_RECOVER_TH (100U)  // IRQ重入计数阈值（触发恢复）
+#define UART_ERROR_STREAK_RECOVER_TH (10U) // 总错误连续次数阈值（触发恢复）
+#define UART_FE_RECOVER_STREAK_TH (3U)     // FE/NE连续错误次数阈值（触发恢复）
+#define UART_PE_RECOVER_STREAK_TH (5U)     // PE连续错误次数阈值（触发恢复）
+#define UART_IRQ_REENTRY_RECOVER_TH (100U) // IRQ重入计数阈值（触发恢复）
 
 /**
  * @brief   初始化UART1硬件及中断

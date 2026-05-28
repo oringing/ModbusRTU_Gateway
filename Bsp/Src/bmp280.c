@@ -1,31 +1,27 @@
 // Bsp/Src/bmp280.c
-#include <stdbool.h>
-#include <stdint.h>
 #include "bmp280.h"
 #include "soft_i2c.h"
-#include "uart.h"
 #include "stm32f1xx_hal.h"
+#include "uart.h"
+#include <stdbool.h>
+#include <stdint.h>
 
-static BMP280_Calib_t s_calib;
-static volatile bool s_is_init = false;
 
+static BMP280_Calib_t s_calib;      // 校准参数缓存（读取自 BMP280 的校准寄存器）
+static volatile bool s_is_init = false;     // 驱动初始化状态标志
 
 // 读取寄存器（调用软件 I2C）
-static bool BMP280_ReadReg(uint8_t reg_addr, uint8_t *data, uint16_t len)
-{
+static bool BMP280_ReadReg(uint8_t reg_addr, uint8_t* data, uint16_t len) {
     return Sensors_I2C_ReadRegister(BMP280_I2C_ADDR, reg_addr, len, data);
 }
 
 // 写寄存器（调用软件 I2C）
-static bool BMP280_WriteReg(uint8_t reg_addr, uint8_t data)
-{
+static bool BMP280_WriteReg(uint8_t reg_addr, uint8_t data) {
     return Sensors_I2C_WriteRegister(BMP280_I2C_ADDR, reg_addr, 1, &data);
 }
 
-
-// 读取校准数据
-static bool BMP280_ReadCalib(void)
-{
+// 读取 BMP280 校准系数并填充 s_calib，依次读取 24 字节校准寄存器并按数据手册解析为有符号/无符号项
+static bool BMP280_ReadCalib(void) {
     uint8_t calib_data[24] = {0};
 
     if (!BMP280_ReadReg(BMP280_DIG_T1_LSB_REG, calib_data, 24)) {
@@ -48,24 +44,23 @@ static bool BMP280_ReadCalib(void)
     return true;
 }
 
-// 温度补偿（输出 0.01℃）
-static int32_t BMP280_CompensateT(int32_t adc_T)
-{
+// 温度补偿算法（返回值单位为 0.01°C），按照官方数据手册计算 t_fine 并返回修正温度，保留中间量以供压力补偿使用
+static int32_t BMP280_CompensateT(int32_t adc_T) {
     int32_t var1, var2;
 
-    var1 = ((((adc_T >> 3) - ((int32_t)s_calib.dig_T1 << 1))) *
-            ((int32_t)s_calib.dig_T2)) >> 11;
-    var2 = (((((adc_T >> 4) - (int32_t)s_calib.dig_T1)) *
-             ((adc_T >> 4) - (int32_t)s_calib.dig_T1)) >> 12) *
-            ((int32_t)s_calib.dig_T3) >> 14;
+    var1 = ((((adc_T >> 3) - ((int32_t)s_calib.dig_T1 << 1))) * ((int32_t)s_calib.dig_T2)) >> 11;
+    var2 =
+        (((((adc_T >> 4) - (int32_t)s_calib.dig_T1)) * ((adc_T >> 4) - (int32_t)s_calib.dig_T1)) >>
+         12) *
+            ((int32_t)s_calib.dig_T3) >>
+        14;
 
     s_calib.t_fine = var1 + var2;
     return (s_calib.t_fine * 5 + 128) >> 8;
 }
 
-// 压力补偿（返回 Q24.8 格式，单位 Pa * 256）
-static uint32_t BMP280_CompensateP(int32_t adc_P)
-{
+// 压力补偿（返回 Q24.8 格式，单位 Pa * 256），使用 64 位中间变量避免溢出，并在不可计算时返回 0 作为错误指示
+static uint32_t BMP280_CompensateP(int32_t adc_P) {
     int64_t var1, var2, p;
     int64_t temp;
 
@@ -73,8 +68,8 @@ static uint32_t BMP280_CompensateP(int32_t adc_P)
     var2 = var1 * var1 * (int64_t)s_calib.dig_P6;
     var2 = var2 + ((var1 * (int64_t)s_calib.dig_P5) << 17);
     var2 = var2 + (((int64_t)s_calib.dig_P4) << 35);
-    var1 = ((var1 * var1 * (int64_t)s_calib.dig_P3) >> 8) +
-           ((var1 * (int64_t)s_calib.dig_P2) << 12);
+    var1 =
+        ((var1 * var1 * (int64_t)s_calib.dig_P3) >> 8) + ((var1 * (int64_t)s_calib.dig_P2) << 12);
     var1 = (((((int64_t)1) << 47) + var1) * (int64_t)s_calib.dig_P1) >> 33;
 
     if (var1 == 0) {
@@ -85,7 +80,7 @@ static uint32_t BMP280_CompensateP(int32_t adc_P)
     // 防止溢出：先计算差值，用 64 位中间变量
     temp = ((int64_t)p << 31) - var2;
     if (temp > INT64_MAX / 3125 || temp < INT64_MIN / 3125) {
-        return 0;   // 溢出，返回无效值
+        return 0; // 溢出，返回无效值
     }
     p = (temp * 3125) / var1;
     var1 = (((int64_t)s_calib.dig_P9) * (p >> 13) * (p >> 13)) >> 25;
@@ -95,8 +90,7 @@ static uint32_t BMP280_CompensateP(int32_t adc_P)
     return (uint32_t)p;
 }
 
-bool BMP280_Init(void)
-{
+bool BMP280_Init(void) {
     uint8_t chip_id = 0;
     uint8_t ctrl_meas = 0;
     uint8_t config = 0;
@@ -148,8 +142,7 @@ bool BMP280_Init(void)
     return true;
 }
 
-bool BMP280_Read(float *pressure, float *temperature)
-{
+bool BMP280_Read(float* pressure, float* temperature) {
     if (pressure == NULL || temperature == NULL) {
         return false;
     }
@@ -158,13 +151,13 @@ bool BMP280_Read(float *pressure, float *temperature)
         return false;
     }
 
-    uint8_t data[6] = {0};
-    int32_t adc_P = 0;
-    int32_t adc_T = 0;
-    int32_t temp_comp = 0;
+    uint8_t  data[6] = {0};
+    int32_t  adc_P = 0;
+    int32_t  adc_T = 0;
+    int32_t  temp_comp = 0;
     uint32_t press_comp = 0;
     uint32_t i = 0;
-    uint8_t status = 0;
+    uint8_t  status = 0;
 
     // 等待测量完成（检查 STATUS 寄存器的 measuring 位）
     for (i = 0; i < 100; i++) {
@@ -186,13 +179,9 @@ bool BMP280_Read(float *pressure, float *temperature)
     }
 
     // 组装 20 位原始数据
-    adc_P = ((int32_t)data[0] << 12) |
-            ((int32_t)data[1] << 4) |
-            ((int32_t)data[2] >> 4);
+    adc_P = ((int32_t)data[0] << 12) | ((int32_t)data[1] << 4) | ((int32_t)data[2] >> 4);
 
-    adc_T = ((int32_t)data[3] << 12) |
-            ((int32_t)data[4] << 4) |
-            ((int32_t)data[5] >> 4);
+    adc_T = ((int32_t)data[3] << 12) | ((int32_t)data[4] << 4) | ((int32_t)data[5] >> 4);
 
     // 温度补偿
     temp_comp = BMP280_CompensateT(adc_T);
@@ -200,12 +189,11 @@ bool BMP280_Read(float *pressure, float *temperature)
 
     // 压力补偿
     press_comp = BMP280_CompensateP(adc_P);
-    *pressure = (float)press_comp / 25600.0f;  // Q24.8 转 hPa
+    *pressure = (float)press_comp / 25600.0f; // Q24.8 转 hPa
 
     return true;
 }
 
-const BMP280_Calib_t *BMP280_GetCalib(void)
-{
+const BMP280_Calib_t* BMP280_GetCalib(void) {
     return &s_calib;
 }

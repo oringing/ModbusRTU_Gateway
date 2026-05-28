@@ -1,4 +1,4 @@
-//Bsp/Inc/servo.h
+// Bsp/Inc/servo.h
 #ifndef __SERVO_H__
 #define __SERVO_H__
 
@@ -9,28 +9,28 @@ extern "C" {
 #endif
 
 // ---- PWM定时器配置（不可修改）----
-#define SERVO_TIM_INSTANCE TIM3           // 舵机PWM定时器实例（TIM3）
-#define SERVO_TIM_PRESCALER 71U           // 预分频系数，使计数器频率为1MHz（72MHz/(71+1)）
-#define SERVO_TIM_PERIOD 19999U           // 20ms周期(72MHz/(19999+1)/(71+1)=50Hz)
+#define SERVO_TIM_INSTANCE TIM3 // 舵机PWM定时器实例（TIM3）
+#define SERVO_TIM_PRESCALER 71U // 预分频系数，使计数器频率为1MHz（72MHz/(71+1)）
+#define SERVO_TIM_PERIOD 19999U // 20ms周期(72MHz/(19999+1)/(71+1)=50Hz)
 
 // ---- 通道1硬件引脚（PA6，180°舵机）----
-#define SERVO_CH1_GPIO_PORT GPIOA         // 通道1 GPIO端口
-#define SERVO_CH1_GPIO_PIN GPIO_PIN_6     // 通道1 GPIO引脚（PA6）
-#define SERVO_CH1_CHANNEL TIM_CHANNEL_1   // 通道1 TIM通道
+#define SERVO_CH1_GPIO_PORT GPIOA       // 通道1 GPIO端口
+#define SERVO_CH1_GPIO_PIN GPIO_PIN_6   // 通道1 GPIO引脚（PA6）
+#define SERVO_CH1_CHANNEL TIM_CHANNEL_1 // 通道1 TIM通道
 
 // ---- 通道2硬件引脚（PA7，360°连续旋转舵机）----
-#define SERVO_CH2_GPIO_PORT GPIOA         // 通道2 GPIO端口
-#define SERVO_CH2_GPIO_PIN GPIO_PIN_7     // 通道2 GPIO引脚（PA7）
-#define SERVO_CH2_CHANNEL TIM_CHANNEL_2   // 通道2 TIM通道
+#define SERVO_CH2_GPIO_PORT GPIOA       // 通道2 GPIO端口
+#define SERVO_CH2_GPIO_PIN GPIO_PIN_7   // 通道2 GPIO引脚（PA7）
+#define SERVO_CH2_CHANNEL TIM_CHANNEL_2 // 通道2 TIM通道
 
 // ---- 舵机脉宽参数（标准SG90规格）----
-#define SERVO_PULSE_MIN_US (500U)         // 最小脉宽(us)，对应0°或全速反转
-#define SERVO_PULSE_MAX_US (2500U)        // 最大脉宽(us)，对应180°或全速正转
-#define SERVO_PULSE_NEUTRAL_US (1500U)    // 中位脉宽(us)，对应90°或停止
+#define SERVO_PULSE_MIN_US (500U)      // 最小脉宽(us)，对应0°或全速反转
+#define SERVO_PULSE_MAX_US (2500U)     // 最大脉宽(us)，对应180°或全速正转
+#define SERVO_PULSE_NEUTRAL_US (1500U) // 中位脉宽(us)，对应90°或停止
 
 // ---- 角度映射参数（仅用于180°舵机）----
-#define SERVO_ANGLE_MIN (0U)              // 最小角度(度)
-#define SERVO_ANGLE_MAX (180U)            // 最大角度(度)
+#define SERVO_ANGLE_MIN (0U)                                           // 最小角度(度)
+#define SERVO_ANGLE_MAX (180U)                                         // 最大角度(度)
 #define SERVO_PULSE_RANGE_US (SERVO_PULSE_MAX_US - SERVO_PULSE_MIN_US) // 脉宽范围(us)
 
 /**

@@ -5,8 +5,8 @@
 #include "stm32f1xx_hal.h"
 
 // ---- 硬件引脚定义（与电路图同步）----
-#define LED_C13_GPIO_Port GPIOC  // LED连接的GPIO端口（PC13）
-#define LED_C13_Pin GPIO_PIN_13  // LED连接的GPIO引脚（PC13，低电平点亮）
+#define LED_C13_GPIO_Port GPIOC // LED连接的GPIO端口（PC13）
+#define LED_C13_Pin GPIO_PIN_13 // LED连接的GPIO引脚（PC13，低电平点亮）
 
 /**
  * @brief   初始化LED引脚（PC13）

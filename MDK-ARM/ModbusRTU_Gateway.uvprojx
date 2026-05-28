@@ -633,9 +633,9 @@
               <FilePath>..\Bsp\Src\bmp280.c</FilePath>
             </File>
             <File>
-              <FileName>i2c.c</FileName>
+              <FileName>soft_i2c.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Bsp\Src\i2c.c</FilePath>
+              <FilePath>..\Bsp\Src\soft_i2c.c</FilePath>
             </File>
           </Files>
         </Group>

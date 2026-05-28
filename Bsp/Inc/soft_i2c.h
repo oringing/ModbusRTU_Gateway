@@ -10,20 +10,20 @@ extern "C" {
 #endif
 
 // ---- 硬件引脚映射（与原理图同步）----
-#define SOFT_I2C_SDA         GPIO_PIN_7   // PB7，固定硬件连接，不可修改
-#define SOFT_I2C_SCL         GPIO_PIN_6   // PB6，固定硬件连接，不可修改
-#define SOFT_I2C_PORT        GPIOB
+#define SOFT_I2C_SDA GPIO_PIN_7 // PB7，固定硬件连接，不可修改
+#define SOFT_I2C_SCL GPIO_PIN_6 // PB6，固定硬件连接，不可修改
+#define SOFT_I2C_PORT GPIOB
 
 // ---- I2C 电平控制宏（开漏输出，总线空闲时外部上拉至高电平）----
-#define SOFT_I2C_SCL_0       HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SCL, GPIO_PIN_RESET)     // SCL 置低
-#define SOFT_I2C_SCL_1       HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SCL, GPIO_PIN_SET)       // SCL 置高
-#define SOFT_I2C_SDA_0       HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_RESET)     // SDA 置低
-#define SOFT_I2C_SDA_1       HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_SET)       // SDA 置高
-#define SOFT_I2C_SDA_READ    HAL_GPIO_ReadPin(SOFT_I2C_PORT, SOFT_I2C_SDA)         // 读取 SDA 电平（0 或 1）
+#define SOFT_I2C_SCL_0 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SCL, GPIO_PIN_RESET) // SCL 置低
+#define SOFT_I2C_SCL_1 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SCL, GPIO_PIN_SET)   // SCL 置高
+#define SOFT_I2C_SDA_0 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_RESET) // SDA 置低
+#define SOFT_I2C_SDA_1 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_SET)   // SDA 置高
+#define SOFT_I2C_SDA_READ HAL_GPIO_ReadPin(SOFT_I2C_PORT, SOFT_I2C_SDA)               // 读取 SDA 电平（0 或 1）
 
-// I2C timing/retry macros
-#define I2C_WAIT_ACK_MAX_RETRY 250U
-#define I2C_DEFAULT_RETRY_MS 55U
+// ---- 时序与重试参数（性能调优）----
+#define I2C_WAIT_ACK_MAX_RETRY 250U    // ACK 等待超时计数（约 1.25ms @ 5μs/次）
+#define I2C_DEFAULT_RETRY_MS 55U       // 操作失败后重试间隔（毫秒），传入 0 表示不重试
 
 /**
  * @brief   初始化软件 I2C 总线
@@ -54,8 +54,8 @@ unsigned short Get_I2C_Retry(void);
  * @return  false = 失败（超时或无应答）
  * @note    用于寄存器式设备（如 BMP280），不支持命令式传感器
  */
-bool Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr,
-                             unsigned short len, unsigned char *data_ptr);
+bool Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr, unsigned short len,
+                              unsigned char* data_ptr);
 
 /**
  * @brief   写入 I2C 寄存器（连续写：设备地址 + 寄存器地址 + 数据）
@@ -66,8 +66,8 @@ bool Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr,
  * @return  true  = 成功
  * @return  false = 失败
  */
-bool Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr,
-                              unsigned short len, const unsigned char *data_ptr);
+bool Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr, unsigned short len,
+                               const unsigned char* data_ptr);
 
 /**
  * @brief   向命令式传感器发送原始命令（无寄存器地址）
@@ -77,8 +77,8 @@ bool Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr,
  * @return  true  = 成功
  * @return  false = 失败
  */
-bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char *data,
-                             unsigned short len);
+bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char* data,
+                              unsigned short len);
 
 /**
  * @brief   先写命令再读取数据（AHT20 专用）
@@ -90,8 +90,8 @@ bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char *dat
  * @return  false = 失败
  * @note    底层实现：START + Addr(W) + cmd + RESTART + Addr(R) + read(len)
  */
-bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd,
-                                unsigned char *data, unsigned short len);
+bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd, unsigned char* data,
+                                 unsigned short len);
 
 #ifdef __cplusplus
 }

@@ -7,50 +7,50 @@
 #include <string.h>
 
 #if (UART_FAULT_BLINK_INTERVAL_MS > 1000)
-    #error "UART_FAULT_BLINK_INTERVAL_MS 过大，忙等待会长时间阻塞CPU"
+#    error "UART_FAULT_BLINK_INTERVAL_MS 过大，忙等待会长时间阻塞CPU"
 #endif
 
 // 私有变量：UART句柄及双缓冲区
 static UART_HandleTypeDef huart1;
-static uint8_t            s_rx_buffer_a[BSP_UART_RX_BUF_SIZE]; // 接收缓冲区A
-static uint8_t            s_rx_buffer_b[BSP_UART_RX_BUF_SIZE]; // 接收缓冲区B
-static uint8_t*           s_active_rx_buffer = s_rx_buffer_a;  // 当前活动缓冲区，仅ISR写入
-static uint8_t*           s_ready_rx_buffer = s_rx_buffer_b;   // 已就绪缓冲区，任务读取后交换
-static volatile uint16_t  rx_count = 0;                        // 当前帧接收字节计数
-static volatile uint16_t  s_ready_frame_len = 0U;              // 已就绪帧长度
-static volatile bool      frame_ready = false;                 // 帧就绪标志，受关中断保护
-static volatile bool      s_rx_need_recovery = false;          // 恢复请求标志
-static volatile uint32_t  s_uart_error_count = 0U;             // 总错误计数
-static volatile uint32_t  s_uart_rx_overflow_count = 0U;       // 接收溢出计数
-static volatile uint32_t  s_uart_ore_count = 0U;               // ORE错误计数
-static volatile uint32_t  s_uart_fe_count = 0U;                // FE错误计数
-static volatile uint32_t  s_uart_ne_count = 0U;                // NE错误计数
-static volatile uint32_t  s_uart_pe_count = 0U;                // PE错误计数
-static volatile uint32_t  s_uart_error_streak = 0U;            // 连续错误计数
-static volatile uint32_t  s_uart_irq_reentry_count = 0U;       // IRQ重入计数
-static volatile uint8_t   s_uart_irq_busy = 0U;                // IRQ忙标志，防止重入
-static volatile uint32_t  s_uart_fe_streak = 0U;               // FE/NE连续错误计数
-static volatile uint32_t  s_uart_pe_streak = 0U;               // PE连续错误计数
-static volatile uint8_t   s_uart_tx_in_progress = 0U;          // TX进行中标志，用于过滤回显
-static uint32_t           s_last_error_log_tick = 0U;          // 上次错误日志时间戳
-static uint32_t           s_last_recover_try_tick = 0U;        // 上次恢复尝试时间戳
-static uint32_t           s_last_recover_fail_log_tick = 0U;   // 上次恢复失败日志时间戳
+static uint8_t            s_rx_buffer_a[BSP_UART_RX_BUF_SIZE];     // 接收缓冲区A
+static uint8_t            s_rx_buffer_b[BSP_UART_RX_BUF_SIZE];     // 接收缓冲区B
+static uint8_t*           s_active_rx_buffer = s_rx_buffer_a;      // 当前活动缓冲区，仅ISR写入
+static uint8_t*           s_ready_rx_buffer = s_rx_buffer_b;       // 已就绪缓冲区，任务读取后交换
+static volatile uint16_t  rx_count = 0;                            // 当前帧接收字节计数
+static volatile uint16_t  s_ready_frame_len = 0U;                  // 已就绪帧长度
+static volatile bool      frame_ready = false;                     // 帧就绪标志，受关中断保护
+static volatile bool      s_rx_need_recovery = false;              // 恢复请求标志
+static volatile uint32_t  s_uart_error_count = 0U;                 // 总错误计数
+static volatile uint32_t  s_uart_rx_overflow_count = 0U;           // 接收溢出计数
+static volatile uint32_t  s_uart_ore_count = 0U;                   // ORE错误计数
+static volatile uint32_t  s_uart_fe_count = 0U;                    // FE错误计数
+static volatile uint32_t  s_uart_ne_count = 0U;                    // NE错误计数
+static volatile uint32_t  s_uart_pe_count = 0U;                    // PE错误计数
+static volatile uint32_t  s_uart_error_streak = 0U;                // 连续错误计数
+static volatile uint32_t  s_uart_irq_reentry_count = 0U;           // IRQ重入计数
+static volatile uint8_t   s_uart_irq_busy = 0U;                    // IRQ忙标志，防止重入
+static volatile uint32_t  s_uart_fe_streak = 0U;                   // FE/NE连续错误计数
+static volatile uint32_t  s_uart_pe_streak = 0U;                   // PE连续错误计数
+static volatile uint8_t   s_uart_tx_in_progress = 0U;              // TX进行中标志，用于过滤回显
+static uint32_t           s_last_error_log_tick = 0U;              // 上次错误日志时间戳
+static uint32_t           s_last_recover_try_tick = 0U;            // 上次恢复尝试时间戳
+static uint32_t           s_last_recover_fail_log_tick = 0U;       // 上次恢复失败日志时间戳
 static uint32_t           s_last_post_frame_restart_log_tick = 0U; // 上次帧后重启日志时间戳
 
-static uint32_t s_recovery_retry_count = 0U;  // 恢复重试计数
-static bool     s_uart_hw_fault = false;      // 硬件故障标志
-static uint32_t s_success_rx_count = 0U;      // 连续成功接收计数
+static uint32_t s_recovery_retry_count = 0U; // 恢复重试计数
+static bool     s_uart_hw_fault = false;     // 硬件故障标志
+static uint32_t s_success_rx_count = 0U;     // 连续成功接收计数
 
 // 内部函数声明
 static HAL_StatusTypeDef BSP_UART_StartReceiveByteRaw(void);
-static bool BSP_UART_StartReceiveByte(void);
-static bool BSP_UART_RestartReceiveFromBufferHead(HAL_StatusTypeDef* restart_status);
-static bool BSP_UART_ResetStateAndRestartReceive(HAL_StatusTypeDef* restart_status);
-static void BSP_UART_RequestRecoveryFromISR(void);
-static void BSP_UART_FinalizeFrameFromISR(void);
-static bool BSP_UART_ShouldThrottleLog(void);
-static void BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef* huart);
-static void BSP_UART_RecoveryIfNeeded(void);
+static bool              BSP_UART_StartReceiveByte(void);
+static bool              BSP_UART_RestartReceiveFromBufferHead(HAL_StatusTypeDef* restart_status);
+static bool              BSP_UART_ResetStateAndRestartReceive(HAL_StatusTypeDef* restart_status);
+static void              BSP_UART_RequestRecoveryFromISR(void);
+static void              BSP_UART_FinalizeFrameFromISR(void);
+static bool              BSP_UART_ShouldThrottleLog(void);
+static void              BSP_UART_ClassifyAndHandleErrorsFromISR(UART_HandleTypeDef* huart);
+static void              BSP_UART_RecoveryIfNeeded(void);
 
 // UART故障恢复专用忙等待延时，关中断安全；72MHz下每毫秒约68000次循环（实测校准值）
 static void Uart_BusyDelay(uint32_t ms) {
@@ -59,7 +59,6 @@ static void Uart_BusyDelay(uint32_t ms) {
         __NOP();
     }
 }
-
 
 // 启动单字节接收（裸接口，无状态检查）
 static HAL_StatusTypeDef BSP_UART_StartReceiveByteRaw(void) {
