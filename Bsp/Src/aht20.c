@@ -72,7 +72,7 @@ bool AHT20_Init(void) {
     HAL_Delay(AHT20_POWER_UP_DELAY_MS);
 
     if (!AHT20_ReadStatus(&status)) {
-        BSP_UART_PrintString("AHT20 init failed: read status\r\n");
+        BSP_UART2_DebugPrint("AHT20 init failed: read status\r\n");
         return false;
     }
 
@@ -81,23 +81,23 @@ bool AHT20_Init(void) {
             break;
         HAL_Delay(10);
         if (!AHT20_ReadStatus(&status)) {
-            BSP_UART_PrintString("AHT20 init failed: read status retry\r\n");
+            BSP_UART2_DebugPrint("AHT20 init failed: read status retry\r\n");
             return false;
         }
     }
 
     if (!AHT20_IsCalibrated(status)) {
         if (!AHT20_SendCmd(AHT20_CMD_SOFT_RESET, NULL, 0)) {
-            BSP_UART_PrintString("AHT20 init failed: soft reset\r\n");
+            BSP_UART2_DebugPrint("AHT20 init failed: soft reset\r\n");
             return false;
         }
         HAL_Delay(AHT20_SOFT_RESET_DELAY_MS);
         if (!AHT20_ReadStatus(&status)) {
-            BSP_UART_PrintString("AHT20 init failed: status after reset\r\n");
+            BSP_UART2_DebugPrint("AHT20 init failed: status after reset\r\n");
             return false;
         }
         if (!AHT20_IsCalibrated(status)) {
-            BSP_UART_PrintString("AHT20 init failed: calibration missing\r\n");
+            BSP_UART2_DebugPrint("AHT20 init failed: calibration missing\r\n");
             return false;
         }
     }
@@ -114,7 +114,7 @@ bool AHT20_Read(float* temp, float* humi) {
         return false;
 
     if (!AHT20_SendCmd(AHT20_CMD_MEASURE, measure_param, 2)) {
-        BSP_UART_PrintString("AHT20 read failed: send measure command\r\n");
+        BSP_UART2_DebugPrint("AHT20 read failed: send measure command\r\n");
         return false;
     }
 
@@ -122,7 +122,7 @@ bool AHT20_Read(float* temp, float* humi) {
 
     for (uint8_t i = 0; i < 10; i++) {
         if (!AHT20_ReadStatus(&status)) {
-            BSP_UART_PrintString("AHT20 read failed: status polling\r\n");
+            BSP_UART2_DebugPrint("AHT20 read failed: status polling\r\n");
             return false;
         }
         if (AHT20_IsIdle(status))
@@ -131,17 +131,17 @@ bool AHT20_Read(float* temp, float* humi) {
     }
 
     if (!AHT20_IsIdle(status)) {
-        BSP_UART_PrintString("AHT20 read failed: sensor busy\r\n");
+        BSP_UART2_DebugPrint("AHT20 read failed: sensor busy\r\n");
         return false;
     }
 
     if (!AHT20_ReadMeasurement(raw_data)) {
-        BSP_UART_PrintString("AHT20 read failed: measurement read\r\n");
+        BSP_UART2_DebugPrint("AHT20 read failed: measurement read\r\n");
         return false;
     }
 
     if (!AHT20_ParseData(raw_data, temp, humi)) {
-        BSP_UART_PrintString("AHT20 read failed: data parse invalid\r\n");
+        BSP_UART2_DebugPrint("AHT20 read failed: data parse invalid\r\n");
         return false;
     }
 

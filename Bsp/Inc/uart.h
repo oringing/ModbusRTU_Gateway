@@ -6,20 +6,19 @@
 #include <stdbool.h>
 
 // ---- 硬件配置（不可修改）----
-// 注意：目前USART1同时用于Modbus RTU通信和调试日志打印
-// USART2(PA2/PA3)已预留，以便未来扩展使用
+// USART1（PA9 TX / PA10 RX）Modbus RTU通信
 #define BSP_UART_BAUDRATE (115200U)  // UART波特率，需与主机PLC保持一致
 #define BSP_UART_INSTANCE USART1     // UART实例（USART1）
 #define BSP_UART_GPIO_PORT GPIOA     // UART GPIO端口（PA9/PA10）
 #define BSP_UART1_TX_PIN GPIO_PIN_9  // USART1 TX引脚（PA9）
 #define BSP_UART1_RX_PIN GPIO_PIN_10 // USART1 RX引脚（PA10）
 
-// USART2预留配置（未来扩展）
-// #define BSP_UART2_BAUDRATE    (115200U)
-// #define BSP_UART2_INSTANCE    USART2
-// #define BSP_UART2_GPIO_PORT   GPIOA
-// #define BSP_UART2_TX_PIN      GPIO_PIN_2  // PA2
-// #define BSP_UART2_RX_PIN      GPIO_PIN_3  // PA3
+// USART2(PA2 TX / PA3 RX) 调试日志/错误信息打印
+#define BSP_UART2_BAUDRATE    (115200U)
+#define BSP_UART2_INSTANCE    USART2
+#define BSP_UART2_GPIO_PORT   GPIOA
+#define BSP_UART2_TX_PIN      GPIO_PIN_2  // PA2
+#define BSP_UART2_RX_PIN      GPIO_PIN_3  // PA3
 
 // ---- 缓冲区配置（可调整）----
 #define BSP_UART_RX_BUF_SIZE (256U) // UART接收缓冲区大小(字节)，需≥Modbus最大帧长
@@ -52,20 +51,21 @@
 void BSP_UART_Init(void);
 
 /**
- * @brief   通过UART发送字符串（调试用）
+ * @brief   通过 USART2 发送字符串（调试专用）
+ * @note    与 Modbus 总线完全隔离，推荐所有调试日志使用此函数
  * @param   str 待发送的字符串指针，必须以'\0'结尾
- * @warning 同步阻塞发送，不建议在实时任务中频繁调用
  */
-void BSP_UART_PrintString(const char* str);
+void BSP_UART2_DebugPrint(const char* str);
 
 /**
- * @brief   发送数据帧（Modbus响应使用）
+ * @brief   发送数据帧（Modbus 响应使用）
+ * @note    使用 USART1，带 RS485 回显过滤
  * @param   data 待发送数据指针
  * @param   len 数据长度(字节)，范围[1, BSP_UART_TX_BUF_SIZE]
  * @param   timeout 超时时间(ms)
  * @return  true=发送成功, false=超时或硬件错误
  */
-bool BSP_UART_Send(const uint8_t* data, uint16_t len, uint32_t timeout);
+bool BSP_UART1_ModbusSend(const uint8_t* data, uint16_t len, uint32_t timeout);
 
 /**
  * @brief   检查是否有完整帧就绪

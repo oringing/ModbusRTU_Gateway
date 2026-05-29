@@ -195,7 +195,7 @@ static void System_Error_Log(const char* msg) {
     }
 
 #if (SYSTEM_UART_TEXT_LOG_ENABLE == 1U)
-    (void)UART_Driver_Send((const uint8_t*)msg, (uint16_t)strlen(msg), 20U);
+    (void)UART2_Driver_DebugPrint(msg);
 #else
     (void)msg; // 避免未使用参数警告
 #endif
@@ -208,7 +208,7 @@ static void System_Monitor_Log(const char* msg) {
     }
 
 #if (SYSTEM_STACK_WATERMARK_LOG_ENABLE == 1U)
-    (void)UART_Driver_Send((const uint8_t*)msg, (uint16_t)strlen(msg), 20U);
+    (void)UART2_Driver_DebugPrint(msg);
 #else
     (void)msg; // 避免未使用参数警告
 #endif

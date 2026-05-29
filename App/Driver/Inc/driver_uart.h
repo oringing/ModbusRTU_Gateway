@@ -26,7 +26,14 @@ bool UART_Driver_Init(void);
  * @return  true=发送成功, false=超时或互斥锁获取失败
  * @warning 调度器未启动时直接调用BSP层，启动后加锁保护
  */
-bool UART_Driver_Send(const uint8_t* data, uint16_t len, uint32_t timeout);
+bool UART1_Driver_ModbusSend(const uint8_t* data, uint16_t len, uint32_t timeout);
+
+/**
+ * @brief   线程安全打印调试日志（UART2 调试口）
+ * @param   str 以 '\0' 结尾的字符串
+ * @return  true=发送成功, false=参数错误或互斥锁获取失败
+ */
+bool UART2_Driver_DebugPrint(const char* str);
 
 /**
  * @brief   超时轮询接收完整帧

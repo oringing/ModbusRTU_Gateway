@@ -17,7 +17,7 @@ static void Error_SendText(const char* text) {
     }
 
 #if (SYSTEM_UART_TEXT_LOG_ENABLE == 1U)
-    (void)UART_Driver_Send((const uint8_t*)text, (uint16_t)strlen(text), ERROR_LOG_SEND_TIMEOUT_MS);
+    (void)UART2_Driver_DebugPrint(text);
 #else
     (void)text; // 避免未使用参数警告
 #endif

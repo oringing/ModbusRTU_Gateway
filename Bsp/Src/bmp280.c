@@ -97,23 +97,23 @@ bool BMP280_Init(void) {
 
     // 1. 读取芯片 ID
     if (!BMP280_ReadReg(BMP280_CHIPID_REG, &chip_id, 1)) {
-        BSP_UART_PrintString("BMP280 init failed: chip id read\r\n");
+        BSP_UART2_DebugPrint("BMP280 init failed: chip id read\r\n");
         return false;
     }
     if (chip_id != 0x58) {
-        BSP_UART_PrintString("BMP280 init failed: invalid chip id\r\n");
+        BSP_UART2_DebugPrint("BMP280 init failed: invalid chip id\r\n");
         return false;
     }
 
     // 2. 读取校准系数
     if (!BMP280_ReadCalib()) {
-        BSP_UART_PrintString("BMP280 init failed: read calibration\r\n");
+        BSP_UART2_DebugPrint("BMP280 init failed: read calibration\r\n");
         return false;
     }
 
     // 3. 软复位
     if (!BMP280_WriteReg(BMP280_RESET_REG, 0xB6)) {
-        BSP_UART_PrintString("BMP280 init failed: reset write\r\n");
+        BSP_UART2_DebugPrint("BMP280 init failed: reset write\r\n");
         return false;
     }
     HAL_Delay(50);
@@ -121,7 +121,7 @@ bool BMP280_Init(void) {
     // 4. 配置 CONFIG：IIR 滤波系数 = 8，待机时间 = 62.5ms
     config = BMP280_STANDBY_62_5MS | BMP280_FILTER_COEFF_8;
     if (!BMP280_WriteReg(BMP280_CONFIG_REG, config)) {
-        BSP_UART_PrintString("BMP280 init failed: config write\r\n");
+        BSP_UART2_DebugPrint("BMP280 init failed: config write\r\n");
         return false;
     }
     HAL_Delay(10);
@@ -130,7 +130,7 @@ bool BMP280_Init(void) {
     //    osrs_p=BMP280_OVERSAMP_8X, osrs_t=BMP280_OVERSAMP_16X, mode=NORMAL
     ctrl_meas = (BMP280_OVERSAMP_8X << 2) | (BMP280_OVERSAMP_16X << 5) | BMP280_NORMAL_MODE;
     if (!BMP280_WriteReg(BMP280_CTRLMEAS_REG, ctrl_meas)) {
-        BSP_UART_PrintString("BMP280 init failed: ctrl_meas write\r\n");
+        BSP_UART2_DebugPrint("BMP280 init failed: ctrl_meas write\r\n");
         return false;
     }
     HAL_Delay(10);
@@ -163,7 +163,7 @@ bool BMP280_Read(float* pressure, float* temperature) {
     for (i = 0; i < 100; i++) {
         status = 0;
         if (!BMP280_ReadReg(BMP280_STATUS_REG, &status, 1)) {
-            BSP_UART_PrintString("BMP280 read failed: status read\r\n");
+            BSP_UART2_DebugPrint("BMP280 read failed: status read\r\n");
             return false;
         }
         if ((status & 0x08U) == 0) {
@@ -174,7 +174,7 @@ bool BMP280_Read(float* pressure, float* temperature) {
 
     // 突发读取 6 字节原始数据
     if (!BMP280_ReadReg(BMP280_PRESSURE_MSB_REG, data, 6)) {
-        BSP_UART_PrintString("BMP280 read failed: raw data read\r\n");
+        BSP_UART2_DebugPrint("BMP280 read failed: raw data read\r\n");
         return false;
     }
 
