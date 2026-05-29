@@ -32,7 +32,7 @@ static const uint16_t s_default_regs[] = {
     0x4000U,   // 对应地址 0x0004: 180° 舵机目标角度
     0x5000U   // 对应地址 0x0005: 360° 舵机速度/方向
 };
-//剩余地址0x0007-0x0009寄存器值默认为0x0000
+//剩余地址0x0006-0x0009寄存器值默认为0x0000
 
 // 内部函数声明
 static bool Modbus_ValidateFrame(const uint8_t* frame, uint16_t frame_len, uint8_t* func_code);
@@ -136,7 +136,7 @@ static void Modbus_SendException(uint8_t func_code, uint8_t exception_code) {
     error_response[MODBUS_CRC_LOW_BYTE_IDX] = (uint8_t)(error_crc & 0xFFU);
     error_response[MODBUS_CRC_HIGH_BYTE_IDX] = (uint8_t)((error_crc >> 8U) & 0xFFU);
 
-    (void)UART_Driver_Send(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, BSP_UART_TX_TIMEOUT);
+    (void)UART1_Driver_ModbusSend(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, BSP_UART_TX_TIMEOUT);
 }
 
 // 验证帧合法性：地址匹配、最小长度、CRC校验（小端序）
@@ -191,7 +191,7 @@ static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count) {
     modbus_tx_buffer[resp_data_len] = (uint8_t)(resp_crc & 0xFFU);
     modbus_tx_buffer[resp_data_len + 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
-    (void)UART_Driver_Send(modbus_tx_buffer, (uint16_t)(resp_data_len + MODBUS_CRC_LEN),
+    (void)UART1_Driver_ModbusSend(modbus_tx_buffer, (uint16_t)(resp_data_len + MODBUS_CRC_LEN),
                            BSP_UART_TX_TIMEOUT);
 }
 
@@ -255,7 +255,7 @@ static void Modbus_HandleWriteSingleReg(const uint8_t* frame, uint16_t frame_len
     modbus_tx_buffer[MODBUS_RTU_WRITE_SINGLE_REQ_LEN - 2U] = (uint8_t)(resp_crc & 0xFFU);
     modbus_tx_buffer[MODBUS_RTU_WRITE_SINGLE_REQ_LEN - 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
-    (void)UART_Driver_Send(modbus_tx_buffer, MODBUS_RTU_WRITE_SINGLE_REQ_LEN, BSP_UART_TX_TIMEOUT);
+    (void)UART1_Driver_ModbusSend(modbus_tx_buffer, MODBUS_RTU_WRITE_SINGLE_REQ_LEN, BSP_UART_TX_TIMEOUT);
 }
 
 bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t* value) {

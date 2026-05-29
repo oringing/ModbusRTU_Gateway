@@ -4,10 +4,11 @@
 #include "task.h"
 #include "uart.h"
 
-static osMutexId s_uart_mutex = NULL; // UART互斥锁，调度器启动后创建
+static osMutexId s_uart_mutex = NULL;  // UART1(Modbus)互斥锁，调度器启动后创建
+static osMutexId s_uart2_mutex = NULL; // UART2(调试日志)互斥锁，调度器启动后创建
 
-// 懒加载创建互斥锁，避免FreeRTOS启动顺序依赖
-static void UART_Driver_EnsureMutex(void) {
+// 懒加载创建 UART1 互斥锁，避免 FreeRTOS 启动顺序依赖
+static void UART1_Driver_EnsureMutex(void) {
     if (s_uart_mutex != NULL) {
         return;
     }
@@ -18,29 +19,63 @@ static void UART_Driver_EnsureMutex(void) {
     }
 }
 
+// 懒加载创建 UART2 互斥锁，避免 FreeRTOS 启动顺序依赖
+static void UART2_Driver_EnsureDebugMutex(void) {
+    if (s_uart2_mutex != NULL) {
+        return;
+    }
+
+    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
+        osMutexDef(DriverUart2Mutex);
+        s_uart2_mutex = osMutexCreate(osMutex(DriverUart2Mutex));
+    }
+}
+
 bool UART_Driver_Init(void) {
-    UART_Driver_EnsureMutex();
+    UART1_Driver_EnsureMutex();
+    UART2_Driver_EnsureDebugMutex();
+    return true;
+}
+
+bool UART2_Driver_DebugPrint(const char* str) {
+    if (str == NULL) {
+        return false;
+    }
+
+    UART2_Driver_EnsureDebugMutex();
+
+    if (s_uart2_mutex == NULL) {
+        BSP_UART2_DebugPrint(str);
+        return true;
+    }
+
+    if (osMutexWait(s_uart2_mutex, 20U) != osOK) {
+        return false;
+    }
+
+    BSP_UART2_DebugPrint(str);
+    osMutexRelease(s_uart2_mutex);
     return true;
 }
 
 // 线程安全发送：调度器未启动时直调BSP，启动后加锁保护
-bool UART_Driver_Send(const uint8_t* data, uint16_t len, uint32_t timeout) {
+bool UART1_Driver_ModbusSend(const uint8_t* data, uint16_t len, uint32_t timeout) {
     if (data == NULL || len == 0U) {
         return false;
     }
 
-    UART_Driver_EnsureMutex();
+    UART1_Driver_EnsureMutex();
 
     // 调度器未启动，直接发送（无锁保护）
     if (s_uart_mutex == NULL) {
-        return BSP_UART_Send(data, len, timeout);
+        return BSP_UART1_ModbusSend(data, len, timeout);
     }
 
     if (osMutexWait(s_uart_mutex, timeout) != osOK) {
         return false;
     }
 
-    bool ok = BSP_UART_Send(data, len, timeout);
+    bool ok = BSP_UART1_ModbusSend(data, len, timeout);
     osMutexRelease(s_uart_mutex);
     return ok;
 }
