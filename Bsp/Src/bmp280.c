@@ -90,65 +90,57 @@ static uint32_t BMP280_CompensateP(int32_t adc_P) {
     return (uint32_t)p;
 }
 
-bool BMP280_Init(void) {
+BMP280_Error_t BMP280_Init(void) {
     uint8_t chip_id = 0;
     uint8_t ctrl_meas = 0;
     uint8_t config = 0;
 
     // 1. 读取芯片 ID
     if (!BMP280_ReadReg(BMP280_CHIPID_REG, &chip_id, 1)) {
-        BSP_UART2_DebugPrint("BMP280 init failed: chip id read\r\n");
-        return false;
+        return BMP280_ERR_I2C_COMM;
     }
     if (chip_id != 0x58) {
-        BSP_UART2_DebugPrint("BMP280 init failed: invalid chip id\r\n");
-        return false;
+        return BMP280_ERR_CHIP_ID;
     }
 
     // 2. 读取校准系数
     if (!BMP280_ReadCalib()) {
-        BSP_UART2_DebugPrint("BMP280 init failed: read calibration\r\n");
-        return false;
+        return BMP280_ERR_CALIB_READ;
     }
 
     // 3. 软复位
     if (!BMP280_WriteReg(BMP280_RESET_REG, 0xB6)) {
-        BSP_UART2_DebugPrint("BMP280 init failed: reset write\r\n");
-        return false;
+        return BMP280_ERR_RESET_FAIL;
     }
     HAL_Delay(50);
 
-    // 4. 配置 CONFIG：IIR 滤波系数 = 8，待机时间 = 62.5ms
+    // 4. 配置 CONFIG
     config = BMP280_STANDBY_62_5MS | BMP280_FILTER_COEFF_8;
     if (!BMP280_WriteReg(BMP280_CONFIG_REG, config)) {
-        BSP_UART2_DebugPrint("BMP280 init failed: config write\r\n");
-        return false;
+        return BMP280_ERR_CONFIG_WRITE;
     }
     HAL_Delay(10);
 
-    // 5. 配置 CTRL_MEAS：压力×8，温度×16，NORMAL MODE
-    //    osrs_p=BMP280_OVERSAMP_8X, osrs_t=BMP280_OVERSAMP_16X, mode=NORMAL
+    // 5. 配置 CTRL_MEAS
     ctrl_meas = (BMP280_OVERSAMP_8X << 2) | (BMP280_OVERSAMP_16X << 5) | BMP280_NORMAL_MODE;
     if (!BMP280_WriteReg(BMP280_CTRLMEAS_REG, ctrl_meas)) {
-        BSP_UART2_DebugPrint("BMP280 init failed: ctrl_meas write\r\n");
-        return false;
+        return BMP280_ERR_CONFIG_WRITE;
     }
     HAL_Delay(10);
 
-    // 等待第一次测量完成
     HAL_Delay(50);
 
     s_is_init = true;
-    return true;
+    return BMP280_OK;
 }
 
-bool BMP280_Read(float* pressure, float* temperature) {
+BMP280_Error_t BMP280_Read(float* pressure, float* temperature) {
     if (pressure == NULL || temperature == NULL) {
-        return false;
+        return BMP280_ERR_DATA_READ;
     }
 
     if (!s_is_init) {
-        return false;
+        return BMP280_ERR_DATA_READ;
     }
 
     uint8_t  data[6] = {0};
@@ -156,15 +148,13 @@ bool BMP280_Read(float* pressure, float* temperature) {
     int32_t  adc_T = 0;
     int32_t  temp_comp = 0;
     uint32_t press_comp = 0;
-    uint32_t i = 0;
     uint8_t  status = 0;
 
-    // 等待测量完成（检查 STATUS 寄存器的 measuring 位）
-    for (i = 0; i < 100; i++) {
+    // 等待测量完成
+    for (uint8_t i = 0; i < 100; i++) {
         status = 0;
         if (!BMP280_ReadReg(BMP280_STATUS_REG, &status, 1)) {
-            BSP_UART2_DebugPrint("BMP280 read failed: status read\r\n");
-            return false;
+            return BMP280_ERR_STATUS_READ;
         }
         if ((status & 0x08U) == 0) {
             break;
@@ -172,15 +162,13 @@ bool BMP280_Read(float* pressure, float* temperature) {
         HAL_Delay(5);
     }
 
-    // 突发读取 6 字节原始数据
+    // 突发读取 6 字节
     if (!BMP280_ReadReg(BMP280_PRESSURE_MSB_REG, data, 6)) {
-        BSP_UART2_DebugPrint("BMP280 read failed: raw data read\r\n");
-        return false;
+        return BMP280_ERR_DATA_READ;
     }
 
-    // 组装 20 位原始数据
+    // 组装原始数据
     adc_P = ((int32_t)data[0] << 12) | ((int32_t)data[1] << 4) | ((int32_t)data[2] >> 4);
-
     adc_T = ((int32_t)data[3] << 12) | ((int32_t)data[4] << 4) | ((int32_t)data[5] >> 4);
 
     // 温度补偿
@@ -189,9 +177,12 @@ bool BMP280_Read(float* pressure, float* temperature) {
 
     // 压力补偿
     press_comp = BMP280_CompensateP(adc_P);
-    *pressure = (float)press_comp / 25600.0f; // Q24.8 转 hPa
+    if (press_comp == 0) {
+        return BMP280_ERR_COMP_OVERFLOW;
+    }
+    *pressure = (float)press_comp / 25600.0f;
 
-    return true;
+    return BMP280_OK;
 }
 
 const BMP280_Calib_t* BMP280_GetCalib(void) {
