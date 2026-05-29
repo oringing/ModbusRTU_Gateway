@@ -10,8 +10,8 @@ extern "C" {
 #endif
 
 // ---- 硬件引脚映射（与原理图同步）----
-#define SOFT_I2C_SDA GPIO_PIN_7 // PB7，固定硬件连接，不可修改
-#define SOFT_I2C_SCL GPIO_PIN_6 // PB6，固定硬件连接，不可修改
+#define SOFT_I2C_SDA GPIO_PIN_9 // 软件模拟I2C SDA
+#define SOFT_I2C_SCL GPIO_PIN_8 // 软件模拟I2C SCL
 #define SOFT_I2C_PORT GPIOB
 
 // ---- I2C 电平控制宏（开漏输出，总线空闲时外部上拉至高电平）----
