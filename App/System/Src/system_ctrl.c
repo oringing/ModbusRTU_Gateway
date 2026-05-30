@@ -446,7 +446,7 @@ static void System_IWDG_Init(void) {
     hiwdg.Instance = IWDG;
     // 预分频256，计数频率≈156Hz
     hiwdg.Init.Prescaler = IWDG_PRESCALER_256;
-    // 重装载值312，超时≈2秒
+    // 重装载值
     hiwdg.Init.Reload = IWDG_RELOAD_VALUE;
 
     if (HAL_IWDG_Init(&hiwdg) != HAL_OK) {

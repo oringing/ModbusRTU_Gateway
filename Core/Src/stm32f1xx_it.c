@@ -24,7 +24,7 @@
 #include "task.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "uart.h" // 引入 UART 处理函数声明
+#include "uart.h" 
 #include "error_handler.h"
 /* USER CODE END Includes */
 
