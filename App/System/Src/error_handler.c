@@ -1,13 +1,13 @@
 // App/System/Src/error_handler.c
 #include "error_handler.h"
+#include "driver_led.h"
 #include "driver_uart.h"
 #include "FreeRTOS.h"
-#include "led.h"
 #include "task.h"
 #include <stdio.h>
 #include <string.h>
 
-static volatile ErrorType s_last_error = ERROR_NONE; // 最近错误类型，关中断保护
+static volatile ErrorType s_last_error = ERROR_NONE;         // 最近错误类型，关中断保护
 static volatile uint32_t  s_error_counter[ERROR_TYPE_COUNT]; // 各错误类型累计计数器
 
 // 通过UART发送文本日志（受SYSTEM_UART_TEXT_LOG_ENABLE宏控制）
@@ -80,7 +80,7 @@ void System_NotifyError(ErrorType type) {
     if (n > 0) {
         Error_SendText(buf);
     }
-    BSP_LED_On();
+    LED_Driver_SetMode(LED_MODE_ON);
 }
 
 // 进入安全模式：关中断+LED常亮+死循环（不可恢复）
@@ -92,7 +92,7 @@ void System_EnterSafeMode(void) {
     }
 
     __disable_irq();
-    BSP_LED_On();
+    LED_Driver_SetMode(LED_MODE_ON);
     while (1) {
         // 安全停机，需硬件复位退出
     }
@@ -108,9 +108,9 @@ static void BusyDelay(volatile uint32_t loops) {
 // LED闪烁模式：blink_count次亮灭 + 组间间隔
 static void BlinkPattern(uint32_t blink_count) {
     for (uint32_t i = 0U; i < blink_count; i++) {
-        BSP_LED_On();
+        LED_Driver_SetMode(LED_MODE_ON);
         BusyDelay(220000U);
-        BSP_LED_Off();
+        LED_Driver_SetMode(LED_MODE_OFF);
         BusyDelay(220000U);
     }
     BusyDelay(650000U); // 组间间隔
@@ -127,7 +127,7 @@ void System_HandleFault(ErrorType type) {
     while (1) {
         switch (type) {
         case ERROR_STACK_OVERFLOW:
-            BSP_LED_On(); // 栈溢出：LED常亮
+            LED_Driver_SetMode(LED_MODE_ON); // 栈溢出：LED常亮
             BusyDelay(900000U);
             break;
         case ERROR_HARDFAULT:

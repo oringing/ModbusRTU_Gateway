@@ -45,6 +45,22 @@ bool UART2_Driver_DebugPrint(const char* str);
  */
 uint16_t UART_Driver_Receive(uint8_t* buffer, uint16_t max_len, uint32_t timeout);
 
+/**
+ * @brief   检查是否有完整帧就绪（线程安全）
+ * @return  true=有完整帧待读取, false=无数据
+ * @note    封装 BSP_UART_IsFrameReady，不加锁（只读状态）
+ */
+bool UART_Driver_IsFrameReady(void);
+
+/**
+ * @brief   读取已就绪的完整帧（线程安全）
+ * @param   buffer 输出缓冲区指针
+ * @param   max_len 缓冲区最大容量(字节)
+ * @return  实际读取的字节数，0表示无数据或参数错误
+ * @note    封装 BSP_UART_ReadFrame，原子性读取
+ */
+uint16_t UART_Driver_ReadFrame(uint8_t* buffer, uint16_t max_len);
+
 #ifdef __cplusplus
 }
 #endif
