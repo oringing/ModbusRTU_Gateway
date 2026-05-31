@@ -8,10 +8,10 @@
 #define ERROR_LOG_SEND_TIMEOUT_MS (20U) // 错误日志发送超时(ms)，避免阻塞故障处理流程
 
 // ---- LED故障指示时序参数（忙等待循环，禁用中断时使用）----
-#define ERROR_LED_BLINK_DELAY_LOOPS (220000U)       // 单次LED亮/灭延时(循环次数)
-#define ERROR_LED_GROUP_GAP_LOOPS (650000U)         // 闪烁组间间隔(循环次数)
-#define ERROR_STACK_OVERFLOW_HOLD_LOOPS (900000U)   // 栈溢出常亮保持时间(循环次数)
-#define ERROR_LED_BLINK_COUNT_DEFAULT (5U)          // 默认闪烁次数（未知错误）
+#define ERROR_LED_BLINK_DELAY_LOOPS (220000U)     // 单次LED亮/灭延时(循环次数)
+#define ERROR_LED_GROUP_GAP_LOOPS (650000U)       // 闪烁组间间隔(循环次数)
+#define ERROR_STACK_OVERFLOW_HOLD_LOOPS (900000U) // 栈溢出常亮保持时间(循环次数)
+#define ERROR_LED_BLINK_COUNT_DEFAULT (5U)        // 默认闪烁次数（未知错误）
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,17 +22,17 @@ extern "C" {
  * @note    新增错误类型需在ERROR_MAX前添加，并更新System_HandleFault()的switch分支
  */
 typedef enum {
-    ERROR_NONE = 0,           // 无错误
-    ERROR_HAL,                // HAL库错误
-    ERROR_UART,               // UART通信错误
-    ERROR_MODBUS,             // Modbus协议错误
-    ERROR_STACK_OVERFLOW,     // 任务栈溢出
-    ERROR_SYSTEM,             // 系统级错误
-    ERROR_HARDFAULT,          // 硬件故障（HardFault异常）
-    ERROR_MEMMANAGE,          // 内存管理故障（MemManage异常）
-    ERROR_BUSFAULT,           // 总线故障（BusFault异常）
-    ERROR_USAGEFAULT,         // 用法故障（UsageFault异常）
-    ERROR_MAX                 // 错误类型总数（用于数组边界检查）
+    ERROR_NONE = 0,       // 无错误
+    ERROR_HAL,            // HAL库错误
+    ERROR_UART,           // UART通信错误
+    ERROR_MODBUS,         // Modbus协议错误
+    ERROR_STACK_OVERFLOW, // 任务栈溢出
+    ERROR_SYSTEM,         // 系统级错误
+    ERROR_HARDFAULT,      // 硬件故障（HardFault异常）
+    ERROR_MEMMANAGE,      // 内存管理故障（MemManage异常）
+    ERROR_BUSFAULT,       // 总线故障（BusFault异常）
+    ERROR_USAGEFAULT,     // 用法故障（UsageFault异常）
+    ERROR_MAX             // 错误类型总数（用于数组边界检查）
 } ErrorType;
 
 // 内部常量：错误类型数量（必须在枚举后定义）

@@ -7,8 +7,7 @@
 #include <stdio.h>
 
 // 打包命令并发送，AHT20 采用命令式交互，无寄存器地址
-static bool AHT20_SendCmd(uint8_t cmd, const uint8_t* param, uint8_t param_len)
-{
+static bool AHT20_SendCmd(uint8_t cmd, const uint8_t* param, uint8_t param_len) {
     uint8_t buf[3];
     uint8_t total = 1 + param_len;
 
@@ -25,8 +24,7 @@ static bool AHT20_SendCmd(uint8_t cmd, const uint8_t* param, uint8_t param_len)
 }
 
 // 发送 0x71 命令后读取 6 字节测量结果
-static bool AHT20_ReadMeasurement(uint8_t* data)
-{
+static bool AHT20_ReadMeasurement(uint8_t* data) {
     if (data == NULL) {
         return false;
     }
@@ -34,8 +32,7 @@ static bool AHT20_ReadMeasurement(uint8_t* data)
 }
 
 // 读取单字节状态寄存器
-static bool AHT20_ReadStatus(uint8_t* status)
-{
+static bool AHT20_ReadStatus(uint8_t* status) {
     if (status == NULL) {
         return false;
     }
@@ -43,8 +40,7 @@ static bool AHT20_ReadStatus(uint8_t* status)
 }
 
 // 将 20 位原始数据转换为温湿度物理量，并校验是否在合理范围内
-static bool AHT20_ParseData(const uint8_t* raw, float* temp, float* humi)
-{
+static bool AHT20_ParseData(const uint8_t* raw, float* temp, float* humi) {
     uint32_t hum_raw, temp_raw;
 
     // 湿度：raw[1]高8位，raw[2]中8位，raw[3]高4位
@@ -67,19 +63,16 @@ static bool AHT20_ParseData(const uint8_t* raw, float* temp, float* humi)
 }
 
 // 检查状态寄存器的 Bit3（校准使能位）
-static bool AHT20_IsCalibrated(uint8_t status)
-{
+static bool AHT20_IsCalibrated(uint8_t status) {
     return ((status & 0x08U) != 0U);
 }
 
 // 检查状态寄存器的 Bit7（忙标志位），0 表示空闲
-static bool AHT20_IsIdle(uint8_t status)
-{
+static bool AHT20_IsIdle(uint8_t status) {
     return ((status & 0x80U) == 0U);
 }
 
-AHT20_Error_t AHT20_Init(void)
-{
+AHT20_Error_t AHT20_Init(void) {
     uint8_t status = 0;
 
     // 1. 上电后等待传感器稳定
@@ -119,8 +112,7 @@ AHT20_Error_t AHT20_Init(void)
     return AHT20_OK;
 }
 
-AHT20_Error_t AHT20_Read(float* temp, float* humi)
-{
+AHT20_Error_t AHT20_Read(float* temp, float* humi) {
     uint8_t raw_data[6] = {0};
     uint8_t measure_param[2] = {AHT20_MEASURE_DATA0, AHT20_MEASURE_DATA1};
     uint8_t status = 0;

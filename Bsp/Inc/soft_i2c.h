@@ -19,11 +19,11 @@ extern "C" {
 #define SOFT_I2C_SCL_1 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SCL, GPIO_PIN_SET)   // SCL 置高
 #define SOFT_I2C_SDA_0 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_RESET) // SDA 置低
 #define SOFT_I2C_SDA_1 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_SET)   // SDA 置高
-#define SOFT_I2C_SDA_READ HAL_GPIO_ReadPin(SOFT_I2C_PORT, SOFT_I2C_SDA)               // 读取 SDA 电平（0 或 1）
+#define SOFT_I2C_SDA_READ HAL_GPIO_ReadPin(SOFT_I2C_PORT, SOFT_I2C_SDA) // 读取 SDA 电平（0 或 1）
 
 // ---- 时序与重试参数（性能调优）----
-#define I2C_WAIT_ACK_MAX_RETRY 250U    // ACK 等待超时计数（约 1.25ms @ 5μs/次）
-#define I2C_DEFAULT_RETRY_MS 55U       // 操作失败后重试间隔（毫秒），传入 0 表示不重试
+#define I2C_WAIT_ACK_MAX_RETRY 250U // ACK 等待超时计数（约 1.25ms @ 5μs/次）
+#define I2C_DEFAULT_RETRY_MS 55U    // 操作失败后重试间隔（毫秒），传入 0 表示不重试
 
 /**
  * @brief   初始化软件 I2C 总线
