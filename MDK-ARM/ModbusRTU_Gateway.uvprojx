@@ -603,11 +603,6 @@
               <FilePath>..\Bsp\Src\exti.c</FilePath>
             </File>
             <File>
-              <FileName>key.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Bsp\Src\key.c</FilePath>
-            </File>
-            <File>
               <FileName>led.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Bsp\Src\led.c</FilePath>
@@ -668,16 +663,6 @@
           <GroupName>App/Task</GroupName>
           <Files>
             <File>
-              <FileName>key_task.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\App\Task\Src\key_task.c</FilePath>
-            </File>
-            <File>
-              <FileName>led_task.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\App\Task\Src\led_task.c</FilePath>
-            </File>
-            <File>
               <FileName>monitor_task.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\App\Task\Src\monitor_task.c</FilePath>
@@ -686,6 +671,11 @@
               <FileName>uart_task.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\App\Task\Src\uart_task.c</FilePath>
+            </File>
+            <File>
+              <FileName>device_task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Task\Src\device_task.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -702,15 +692,15 @@
               <FileType>1</FileType>
               <FilePath>..\App\Driver\Src\driver_servo.c</FilePath>
             </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>App/Test</GroupName>
-          <Files>
             <File>
-              <FileName>test_validation.c</FileName>
+              <FileName>driver_env_sensor.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\App\Test\Src\test_validation.c</FilePath>
+              <FilePath>..\App\Driver\Src\driver_env_sensor.c</FilePath>
+            </File>
+            <File>
+              <FileName>driver_led.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Driver\Src\driver_led.c</FilePath>
             </File>
           </Files>
         </Group>

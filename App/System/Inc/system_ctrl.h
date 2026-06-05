@@ -13,9 +13,9 @@
 #define IWDG_WINDOW_VALUE 4095U // 窗口值(最大值=禁用窗口功能)
 
 // ---- 配置合理性校验阈值（最小值约束，防止配置错误导致崩溃），2026-05-18实测数据，峰值测试为每秒收发100帧----
-#define DEVICE_TASK_STACK_MIN_WORDS 100U     // DEVICE任务最小栈大小(words)，实测峰值
-#define UART_TASK_STACK_MIN_WORDS 123U       // UART任务最小栈大小(words)，实测峰值82×1.5≈123
-#define MONITOR_TASK_STACK_MIN_WORDS 60U     // Monitor任务最小栈大小(words)，实测峰值40×1.5≈60
+#define DEVICE_TASK_STACK_MIN_WORDS 203U    // DEVICE任务最小栈大小，实际开启传感器数据日志打印时156，关闭时则大幅减小
+#define UART_TASK_STACK_MIN_WORDS 76U       // UART任务最小栈大小，实际58
+#define MONITOR_TASK_STACK_MIN_WORDS 104U   // Monitor任务最小栈大小，实际80
 #define BSP_UART_RX_BUF_MIN_SIZE 256U        // UART接收缓冲区最小尺寸(bytes)
 #define MODBUS_BUFFER_MIN_SIZE 256U          // Modbus缓冲区最小尺寸(bytes)
 #define BSP_UART_TX_TIMEOUT_MIN_MS 1U        // UART发送超时最小值(ms)，不能为0

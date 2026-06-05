@@ -94,7 +94,8 @@ typedef enum {
     BMP280_ERR_CONFIG_WRITE, // 配置寄存器写入失败
     BMP280_ERR_STATUS_READ,  // 状态寄存器读取失败
     BMP280_ERR_DATA_READ,    // 原始数据读取失败
-    BMP280_ERR_COMP_OVERFLOW // 补偿计算溢出
+    BMP280_ERR_COMP_OVERFLOW,// 补偿计算溢出
+    BMP280_ERR_DATA_INVALID  // 数据无效（原始值超出合理范围）
 } BMP280_Error_t;
 
 /**

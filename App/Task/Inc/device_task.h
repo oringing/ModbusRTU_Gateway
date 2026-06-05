@@ -10,7 +10,9 @@
 #define DEVICE_SENSOR_INTERVAL_MS 1000U   // 传感器读取间隔(ms)，匹配Modbus刷新周期
 #define DEVICE_LED_UPDATE_INTERVAL_MS 50U // LED 更新间隔（与基础周期一致）
 
-#define DEVICE_SENSOR_DEBUG_LOG_ENABLE 0 // 传感器调试日志开关，1=启用，0=禁用
+#define DEVICE_SENSOR_DEBUG_LOG_ENABLE 1    // 传感器测量数据日志开关，1=启用，0=禁用
+#define DEVICE_SENSOR_LOG_EVERY_N_READS 5  // 传感器调试日志打印间隔（每秒读取1次，每N次读取后打印一次）
+
 
 #ifdef __cplusplus
 extern "C" {
