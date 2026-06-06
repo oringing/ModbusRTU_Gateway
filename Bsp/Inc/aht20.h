@@ -38,26 +38,32 @@ extern "C" {
 #define AHT20_HUMI_MIN              0.0f        // 湿度下限
 #define AHT20_HUMI_MAX              100.0f      // 湿度上限
 
+// ---- 错误码枚举 ----
+typedef enum {
+    AHT20_OK = 0,
+    AHT20_ERR_I2C_COMM,        // I2C 通信失败（发送/接收超时）
+    AHT20_ERR_STATUS_READ,     // 状态寄存器读取失败
+    AHT20_ERR_BUSY_TIMEOUT,    // 传感器忙超时（长时间未退出测量状态）
+    AHT20_ERR_CALIB_MISSING,   // 校准未完成（软复位后仍无效）
+    AHT20_ERR_SEND_CMD,        // 发送命令失败
+    AHT20_ERR_DATA_INVALID     // 数据解析无效（超出合理范围）
+} AHT20_Error_t;
+
+
 /**
  * @brief   初始化 AHT20 传感器
- * @return  true  = 初始化成功（通信正常且校准使能）
- * @return  false = 初始化失败（通信异常或校准无效）
- * @note    按数据手册流程：上电延时 5ms → 检查状态位 Bit 3（校准使能）
- *          → 若校准未使能则执行软复位
- * @warning BSP 层调用（RTOS 启动前），使用 HAL_Delay() 阻塞延时
+ * @return  AHT20_Error_t 错误码，AHT20_OK 表示成功
  */
-bool AHT20_Init(void);
+AHT20_Error_t AHT20_Init(void);
 
 /**
  * @brief   读取温湿度数据
  * @param   temp 温度输出指针（单位：°C，范围 -40~85）
  * @param   humi 湿度输出指针（单位：%RH，范围 0~100）
- * @return  true  = 读取成功（数据已校验）
- * @return  false = 读取失败（通信超时或数据异常）
- * @note    流程：发送测量命令（0xAC 0x33 0x00）→ 延时 80ms → 读取 6 字节
- *          → 解析 → 合理性校验
+ * @return  AHT20_Error_t 错误码，AHT20_OK 表示成功
  */
-bool AHT20_Read(float *temp, float *humi);
+AHT20_Error_t AHT20_Read(float *temp, float *humi);
+
 
 #ifdef __cplusplus
 }

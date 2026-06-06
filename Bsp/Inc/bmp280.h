@@ -84,24 +84,32 @@ typedef struct {
     int32_t  t_fine;    // 中间变量，温度补偿传递给压力补偿
 } BMP280_Calib_t;
 
+// ---- 错误码枚举 ----
+typedef enum {
+    BMP280_OK = 0,
+    BMP280_ERR_I2C_COMM,       // I2C 通信失败
+    BMP280_ERR_CHIP_ID,        // 芯片 ID 错误（期望 0x58）
+    BMP280_ERR_CALIB_READ,     // 校准系数读取失败
+    BMP280_ERR_RESET_FAIL,     // 软复位失败
+    BMP280_ERR_CONFIG_WRITE,   // 配置寄存器写入失败
+    BMP280_ERR_STATUS_READ,    // 状态寄存器读取失败
+    BMP280_ERR_DATA_READ,      // 原始数据读取失败
+    BMP280_ERR_COMP_OVERFLOW   // 补偿计算溢出
+} BMP280_Error_t;
+
 /**
  * @brief   初始化 BMP280 传感器并读取校准参数
- * @return  true  = 初始化成功（通信正常且校准参数读取完成）
- * @return  false = 初始化失败（通信错误或芯片 ID 校验失败）
- * @note    初始化流程：读取 CHIP ID -> 读取校准参数 -> 软复位 -> 配置 CONFIG/CTRL_MEAS
- * @warning 本函数为阻塞调用，内部使用 HAL_Delay，适用于 BSP 早期初始化（RTOS 未启用）
+ * @return  BMP280_Error_t 错误码，BMP280_OK 表示成功
  */
-bool BMP280_Init(void);
+BMP280_Error_t BMP280_Init(void);
 
 /**
  * @brief   读取当前气压和温度
- * @param   pressure 输出气压（单位：hPa），调用成功时写入有效值
- * @param   temperature 输出温度（单位：℃），调用成功时写入有效值
- * @return  true  = 读取成功
- * @return  false = 失败（未初始化、通信错误或数据异常）
- * @note    返回的气压值已由 Q24.8 格式转换为 hPa
+ * @param   pressure 输出气压（单位：hPa）
+ * @param   temperature 输出温度（单位：℃）
+ * @return  BMP280_Error_t 错误码，BMP280_OK 表示成功
  */
-bool BMP280_Read(float* pressure, float* temperature);
+BMP280_Error_t BMP280_Read(float* pressure, float* temperature);
 
 /**
  * @brief 获取校准参数（调试用）
