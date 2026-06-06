@@ -1,4 +1,5 @@
 // Bsp/Src/soft_i2c.c
+#include "cmsis_os.h"  // 添加这个头文件
 #include "soft_i2c.h"
 #include "stm32f1xx_hal.h"
 
@@ -9,16 +10,16 @@ static void Soft_I2C_Delay(void) {
     }
 }
 
-static void delay_us(uint32_t us) {
-    volatile uint32_t count = us * 12; // 72MHz 下，约 12 循环/μs（实测校准）
-    while (count--) {
-        __NOP();
-    }
-}
-
 void delay_ms(uint32_t ms) {
-    while (ms--) {
-        delay_us(1000);
+    // 如果调度器已运行，使用 RTOS 延时（让出 CPU）
+    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
+        vTaskDelay(pdMS_TO_TICKS(ms));
+    } else {
+        // 调度器未启动，使用空循环
+        volatile uint32_t count = ms * 12000;  // 72MHz 校准值
+        while (count--) {
+            __NOP();
+        }
     }
 }
 
@@ -106,7 +107,7 @@ static void Soft_I2C_SendNack(void) {
 
 // 等待从机应答：第 9 个时钟周期检查 SDA 是否被拉低
 static uint8_t Soft_I2C_WaitAck(void) {
-    uint8_t timeout = 0;
+    uint32_t start_tick = HAL_GetTick();
 
     SOFT_I2C_SDA_1;
     Soft_I2C_Delay();
@@ -114,8 +115,8 @@ static uint8_t Soft_I2C_WaitAck(void) {
     Soft_I2C_Delay();
 
     while (SOFT_I2C_SDA_READ) {
-        timeout++;
-        if (timeout > I2C_WAIT_ACK_MAX_RETRY) {
+        // 超时保护（基于系统 tick）
+        if ((HAL_GetTick() - start_tick) >= I2C_WAIT_ACK_TIMEOUT_MS) {
             Soft_I2C_Stop();
             return 2; // 无应答超时
         }
@@ -283,11 +284,12 @@ bool Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr,
         if (ret) {
             break;
         }
-        HAL_Delay(retry);
-    } while (retry);
+        if (retry) delay_ms(retry);
+    } while (retry--);
 
     return ret;
 }
+
 
 bool Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr, unsigned short len,
                               unsigned char* data_ptr) {
@@ -299,8 +301,8 @@ bool Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr, 
         if (ret) {
             break;
         }
-        HAL_Delay(retry);
-    } while (retry);
+        if (retry) delay_ms(retry);
+    } while (retry--);
 
     return ret;
 }
@@ -415,8 +417,8 @@ bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char* dat
         if (ret) {
             break;
         }
-        HAL_Delay(retry);
-    } while (retry);
+        if (retry) delay_ms(retry);
+    } while (retry--);
 
     return ret;
 }
@@ -431,8 +433,40 @@ bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd, un
         if (ret) {
             break;
         }
-        HAL_Delay(retry);
-    } while (retry);
+        if (retry) delay_ms(retry);
+    } while (retry--);
 
     return ret;
+}
+
+// I2C 总线恢复：发送 9 个时钟脉冲 + 停止条件 + 重新初始化 GPIO
+void I2C_Bus_Recover(void) {
+    uint8_t i;
+    
+    // 1. 配置 SCL 和 SDA 为推挽输出（强制控制总线）
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    
+    GPIO_InitStruct.Pin = SOFT_I2C_SCL | SOFT_I2C_SDA;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;  // 推挽输出
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(SOFT_I2C_PORT, &GPIO_InitStruct);
+    
+    // 2. 发送 9 个时钟脉冲，尝试释放从机
+    SOFT_I2C_SDA_1;  // 释放 SDA
+    for (i = 0; i < 9; i++) {
+        SOFT_I2C_SCL_0;
+        Soft_I2C_Delay();
+        SOFT_I2C_SCL_1;
+        Soft_I2C_Delay();
+    }
+    
+    // 3. 发送停止条件
+    Soft_I2C_Stop();
+    
+    // 4. 重新初始化为开漏输出
+    I2C_Bus_Init();
+    
+    // 5. 等待总线稳定
+    delay_ms(10);
 }

@@ -6,10 +6,15 @@
 #include "driver_uart.h"
 #include "modbus.h"
 #include <stdio.h>
+#include "task.h"
 
 static volatile uint8_t s_device_task_stop = 0U; // 停止标志，任务内循环检查
-static uint32_t         s_last_led_tick = 0;     // 上次LED翻转的系统滴答
-static uint32_t         s_last_sensor_tick = 0;  // 上次传感器读取的系统滴答
+static uint32_t s_last_led_tick = 0;             // 上次LED翻转的系统滴答
+static uint32_t s_last_sensor_tick = 0;          // 上次传感器读取的系统滴答
+static uint32_t s_last_error_log_tick = 0;       // 上次错误日志时间戳（错误日志限流）
+#if DEVICE_SENSOR_DEBUG_LOG_ENABLE
+static uint8_t s_sensor_read_counter = 0;        // 读取计数，打开调试日志时用于控制打印频率
+#endif
 
 // 温度转换：float → Modbus存储值（×10 + 1000偏移，支持零下温度）
 static int16_t EnvSensor_ConvertTempToReg(float temp) {
@@ -42,6 +47,7 @@ static uint16_t EnvSensor_ConvertPressToReg(float press) {
 static void Device_ReadSensors(void) {
     float temp, humi, press;
     bool  ok = EnvSensor_Driver_ReadData(&temp, &humi, &press);
+    TickType_t now = xTaskGetTickCount();   // FreeRTOS 时间，用于错误日志限流
 
     if (ok) {
         // 更新传感器寄存器 0x0000-0x0002
@@ -54,15 +60,21 @@ static void Device_ReadSensors(void) {
         Modbus_InternalWriteRegister(0x0002, press_reg);
 
 #if DEVICE_SENSOR_DEBUG_LOG_ENABLE
-        char buf[80];
-        snprintf(buf, sizeof(buf), "[SENSOR] T=%.1fC, H=%.1f%%, P=%.1fhPa\r\n", temp, humi, press);
-        UART2_Driver_DebugPrint(buf);
+        // 按间隔打印，避免刷屏
+        s_sensor_read_counter++;
+        if (s_sensor_read_counter >= DEVICE_SENSOR_LOG_EVERY_N_READS) {
+            s_sensor_read_counter = 0;
+            char buf[80];
+            snprintf(buf, sizeof(buf), "[SENSOR] T=%.1fC, H=%.1f%%, P=%.1fhPa\r\n", temp, humi, press);
+            UART2_Driver_DebugPrint(buf);
+        }
 #endif
     } else {
-        // 读取失败时的处理（可选：打印警告）
-#if DEVICE_SENSOR_DEBUG_LOG_ENABLE
-        UART2_Driver_DebugPrint("[SENSOR] Read failed, using last valid values\r\n");
-#endif
+        // 读取失败时保持寄存器不变，并打印调试日志
+        if ((now - s_last_error_log_tick) >= 10000U) {
+            s_last_error_log_tick = now;
+            UART2_Driver_DebugPrint("[SENSOR] Read failed, using last valid values\r\n");
+        }
     }
 
     // 更新状态寄存器 0x0003 的 Bit4-5（传感器故障标志）

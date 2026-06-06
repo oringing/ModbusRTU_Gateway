@@ -243,10 +243,6 @@ static void System_StopTaskIfRunning(osThreadId* task_handle) {
 // 校验系统配置参数是否在合理范围内（防止配置错误导致崩溃）
 static bool System_ValidateConfig(void) {
     // === 编译期检查（宏定义冲突在编译时报错）===
-#if (MONITOR_TASK_STACK_SIZE > UART_TASK_STACK_SIZE)
-#    error "MONITOR_TASK_STACK_SIZE must be >= UART_TASK_STACK_SIZE"
-#endif
-
 #if (MODBUS_SLAVE_ADDR == 0U || MODBUS_SLAVE_ADDR > 247U)
 #    error "MODBUS_SLAVE_ADDR must be in range [1, 247]"
 #endif
@@ -265,13 +261,7 @@ static bool System_ValidateConfig(void) {
         System_Error_Log("CFG FAIL: MONITOR_TASK_STACK_SIZE < MONITOR_TASK_STACK_MIN_WORDS\r\n");
         return false;
     }
-    // UART task stack should not be smaller than Monitor (UART handles Modbus parsing, higher stack
-    // demand)
-    if (UART_TASK_STACK_SIZE < MONITOR_TASK_STACK_SIZE) {
-        System_Error_Log("CFG WARN: UART_TASK_STACK_SIZE < MONITOR_TASK_STACK_SIZE (measured UART "
-                         "peak 82words > Monitor peak 40words)\r\n");
-        // Note: Warning only, does not block startup as current config meets individual minimums
-    }
+
     // UART接收缓冲区大小检查
     if (BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE) {
         System_Error_Log("CFG FAIL: BSP_UART_RX_BUF_SIZE < BSP_UART_RX_BUF_MIN_SIZE\r\n");

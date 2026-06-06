@@ -24,6 +24,8 @@ extern "C" {
 // ---- 时序与重试参数（性能调优）----
 #define I2C_WAIT_ACK_MAX_RETRY 250U // ACK 等待超时计数（约 1.25ms @ 5μs/次）
 #define I2C_DEFAULT_RETRY_MS 55U    // 操作失败后重试间隔（毫秒），传入 0 表示不重试
+// === 超时保护 ===
+#define I2C_WAIT_ACK_TIMEOUT_MS 10U  // ACK 等待超时（毫秒），防止断线卡死
 
 /**
  * @brief   初始化软件 I2C 总线
@@ -101,6 +103,12 @@ bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd, un
  * @note    通过 Soft_I2C_Delay 累加实现，仅用于传感器硬件初始化
  */
 void delay_ms(uint32_t ms);
+
+/**
+ * @brief   恢复 I2C 总线（发送 9 个时钟脉冲 + 停止条件 + 重新初始化）
+ * @note    当 I2C 总线进入异常状态时调用，用于释放被占用的总线
+ */
+void I2C_Bus_Recover(void);
 
 #ifdef __cplusplus
 }

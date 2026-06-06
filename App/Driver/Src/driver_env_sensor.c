@@ -79,6 +79,8 @@ static const char* EnvSensor_Driver_BMP280ErrorToString(BMP280_Error_t err) {
         return "BMP280 error: data read\r\n";
     case BMP280_ERR_COMP_OVERFLOW:
         return "BMP280 error: compensation overflow\r\n";
+    case BMP280_ERR_DATA_INVALID:
+        return "BMP280 error: data invalid\r\n";
     default:
         return "BMP280 error: unknown\r\n";
     }
@@ -86,15 +88,9 @@ static const char* EnvSensor_Driver_BMP280ErrorToString(BMP280_Error_t err) {
 #endif
 
 bool EnvSensor_Driver_Init(void) {
-    UART2_Driver_DebugPrint("===== EnvSensor Driver Init Start =====\r\n");
-    UART2_Driver_DebugPrint("EnvSensor_Driver_Init: calling AHT20_Init()\r\n");
     bool          ok = true;
     AHT20_Error_t aht_status = AHT20_Init();
-    UART2_Driver_DebugPrint("EnvSensor_Driver_Init: AHT20_Init returned\r\n");
-
-    UART2_Driver_DebugPrint("EnvSensor_Driver_Init: calling BMP280_Init()\r\n");
     BMP280_Error_t bmp_status = BMP280_Init();
-    UART2_Driver_DebugPrint("EnvSensor_Driver_Init: BMP280_Init returned\r\n");
 
     if (aht_status == AHT20_OK) {
         EnvSensor_Driver_UpdateStatus(ENV_SENSOR_STATUS_AHT20_OK, true);
@@ -141,6 +137,12 @@ bool EnvSensor_Driver_ReadData(float* temp, float* humi, float* pressure) {
     uint32_t now = HAL_GetTick();
 
     // 2. 读取 AHT20（带重试）
+    if (s_aht20_fail_count >= SENSOR_FAILURE_THRESHOLD) {
+        I2C_Bus_Recover();      // 先恢复总线
+        AHT20_Error_t aht_status = AHT20_Init();
+        if (aht_status == AHT20_OK) {            s_aht20_fail_count = 0U;
+        }
+    }
     AHT20_Error_t aht_result = AHT20_ERR_I2C_COMM;
     for (uint8_t retry = 0; retry < SENSOR_RETRY_MAX_COUNT; retry++) {
         aht_result = AHT20_Read(&aht_temp, &aht_humi);
@@ -174,6 +176,13 @@ bool EnvSensor_Driver_ReadData(float* temp, float* humi, float* pressure) {
     }
 
     // 3. 读取 BMP280（带重试）
+    if (s_bmp280_fail_count >= SENSOR_FAILURE_THRESHOLD) {
+        I2C_Bus_Recover();      // 先恢复总线
+        BMP280_Error_t bmp_status = BMP280_Init();  // 尝试重新初始化
+        if (bmp_status == BMP280_OK) {            
+            s_bmp280_fail_count = 0U;
+        }
+    }
     BMP280_Error_t bmp_result = BMP280_ERR_I2C_COMM;
     for (uint8_t retry = 0; retry < SENSOR_RETRY_MAX_COUNT; retry++) {
         bmp_result = BMP280_Read(&bmp_press, &bmp_temp);
@@ -203,6 +212,18 @@ bool EnvSensor_Driver_ReadData(float* temp, float* humi, float* pressure) {
             UART2_Driver_DebugPrint(EnvSensor_Driver_BMP280ErrorToString(bmp_result));
         }
 #endif
+    }
+
+    if (aht_ok && bmp_ok) {
+        float temp_diff = aht_temp - bmp_temp;
+        if (temp_diff > 5.0f || temp_diff < -5.0f) {
+            // 两个传感器温差过大，BMP280 数据可能有问题
+            bmp_ok = false;  // 丢弃本次 BMP280 数据
+            s_bmp280_fail_count++;
+            if (s_bmp280_fail_count < SENSOR_FAILURE_THRESHOLD) {
+                s_bmp280_fail_count = SENSOR_FAILURE_THRESHOLD;
+            }
+        }
     }
 
     // 4. 标记上次有效值是否可用
