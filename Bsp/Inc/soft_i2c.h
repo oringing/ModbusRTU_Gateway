@@ -92,6 +92,15 @@ bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char* dat
  */
 bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd, unsigned char* data,
                                  unsigned short len);
+// soft_i2c.h 末尾添加
+
+/**
+ * @brief   毫秒级阻塞延时（基于空循环累加）
+ * @param   ms 延时毫秒数，范围 1~1000
+ * @warning 阻塞函数，仅在 BSP 初始化阶段或 RTOS 未启动时使用
+ * @note    通过 Soft_I2C_Delay 累加实现，仅用于传感器硬件初始化
+ */
+void delay_ms(uint32_t ms);
 
 #ifdef __cplusplus
 }
