@@ -11,8 +11,8 @@
 #endif
 
 // 私有变量：UART句柄及双缓冲区
-static UART_HandleTypeDef huart1;   // Modbus 通信
-static UART_HandleTypeDef huart2;   // 调试日志输出
+static UART_HandleTypeDef huart1;                                  // Modbus 通信
+static UART_HandleTypeDef huart2;                                  // 调试日志输出
 static uint8_t            s_rx_buffer_a[BSP_UART_RX_BUF_SIZE];     // 接收缓冲区A
 static uint8_t            s_rx_buffer_b[BSP_UART_RX_BUF_SIZE];     // 接收缓冲区B
 static uint8_t*           s_active_rx_buffer = s_rx_buffer_a;      // 当前活动缓冲区，仅ISR写入
@@ -297,14 +297,11 @@ static void BSP_UART_RecoveryIfNeeded(void) {
     }
 }
 
-void BSP_UART_Init(void) {
-    // 1. 使能时钟
-    __HAL_RCC_USART1_CLK_ENABLE();
-    __HAL_RCC_USART2_CLK_ENABLE();
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-
-    // 2. 配置 USART1 引脚（Modbus 通信）
+// 初始化 USART1（仅用于Modbus 通信，需要中断和接收）
+static void BSP_UART1_Init(void) {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    // 引脚配置
     GPIO_InitStruct.Pin = BSP_UART1_TX_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -314,23 +311,9 @@ void BSP_UART_Init(void) {
     GPIO_InitStruct.Pin = BSP_UART1_RX_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(BSP_UART_GPIO_PORT, &GPIO_InitStruct);
 
-    // 3. 配置 USART2 引脚（调试日志，只发不收）
-    GPIO_InitStruct.Pin = BSP_UART2_TX_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(BSP_UART2_GPIO_PORT, &GPIO_InitStruct);
-
-    // RX 引脚不使用时可不配置，或配置为浮空输入
-    GPIO_InitStruct.Pin = BSP_UART2_RX_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(BSP_UART2_GPIO_PORT, &GPIO_InitStruct);
-
-    // 4. 初始化 USART1（Modbus）
+    // USART1 外设配置
     huart1.Instance = BSP_UART_INSTANCE;
     huart1.Init.BaudRate = BSP_UART_BAUDRATE;
     huart1.Init.WordLength = UART_WORDLENGTH_8B;
@@ -344,28 +327,12 @@ void BSP_UART_Init(void) {
         Error_Handler();
     }
 
-    // 5. 初始化 USART2（调试日志）
-    huart2.Instance = BSP_UART2_INSTANCE;
-    huart2.Init.BaudRate = BSP_UART2_BAUDRATE;
-    huart2.Init.WordLength = UART_WORDLENGTH_8B;
-    huart2.Init.StopBits = UART_STOPBITS_1;
-    huart2.Init.Parity = UART_PARITY_NONE;
-    huart2.Init.Mode = UART_MODE_TX_RX;   // 或 UART_MODE_TX（只发不收）
-    huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-
-    if (HAL_UART_Init(&huart2) != HAL_OK) {
-        Error_Handler();
-    }
-
-    // 6. 开启 USART1 中断（Modbus 需要）
+    // 中断配置
     HAL_NVIC_SetPriority(USART1_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(USART1_IRQn);
     __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
 
-    // 7. USART2 不需要中断，不开启
-
-    // 8. 启动 USART1 首次接收
+    // 启动接收
     rx_count = 0U;
     s_ready_frame_len = 0U;
     frame_ready = false;
@@ -375,6 +342,42 @@ void BSP_UART_Init(void) {
         ErrorLogRecord(ERROR_UART, __FILE__, __LINE__);
         Error_Handler();
     }
+}
+
+// 初始化 USART2（调试日志，只发不收，无需中断）
+static void BSP_UART2_Init(void) {
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    // 引脚配置
+    GPIO_InitStruct.Pin = BSP_UART2_TX_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(BSP_UART2_GPIO_PORT, &GPIO_InitStruct);
+
+    // USART2 外设配置
+    huart2.Instance = BSP_UART2_INSTANCE;
+    huart2.Init.BaudRate = BSP_UART2_BAUDRATE;
+    huart2.Init.WordLength = UART_WORDLENGTH_8B;
+    huart2.Init.StopBits = UART_STOPBITS_1;
+    huart2.Init.Parity = UART_PARITY_NONE;
+    huart2.Init.Mode = UART_MODE_TX_RX;
+    huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+
+    if (HAL_UART_Init(&huart2) != HAL_OK) {
+        Error_Handler();
+    }
+}
+
+// 对外接口：初始化全部 UART
+void BSP_UART_Init(void) {
+    __HAL_RCC_USART1_CLK_ENABLE();
+    __HAL_RCC_USART2_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    BSP_UART1_Init();
+    BSP_UART2_Init();
 }
 
 bool BSP_UART1_ModbusSend(const uint8_t* data, uint16_t len, uint32_t timeout) {
@@ -387,7 +390,6 @@ bool BSP_UART1_ModbusSend(const uint8_t* data, uint16_t len, uint32_t timeout) {
     }
     return status;
 }
-
 
 void BSP_UART2_DebugPrint(const char* str) {
     if (str != NULL) {

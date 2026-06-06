@@ -6,17 +6,14 @@
 /* USER CODE BEGIN Includes */
 #include "error_handler.h"
 #include "led.h"
-#include "modbus.h"
+#include "uart.h"
 #include "servo.h"
-#include "stdio.h"
-#include "string.h"
+#include "soft_i2c.h"
 #include "system_config.h"
 #include "system_ctrl.h"
-#include "uart.h"
-#include "soft_i2c.h"
-#include "aht20.h"
-#include "bmp280.h"
-
+#include "modbus.h"
+#include "stdio.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 void SystemClock_Config(void);
@@ -30,29 +27,28 @@ int main(void) {
     SystemClock_Config();
 
     /* USER CODE BEGIN Init */
-    // 3. BSP层硬件初始化（LED/UART/舵机PWM）
+    // 3. BSP层硬件初始化（LED/UART/舵机PWM/软件I2C引脚配置）
     BSP_LED_Init();
     BSP_UART_Init();
     BSP_Servo_Init();
     I2C_Bus_Init();
-    AHT20_Init();
-    BMP280_Init();
 
-    // 4. 协议层初始化（Modbus寄存器+回调）
-    Modbus_Init();
-    
-    // 5. 系统控制层初始化（配置校验+看门狗）
+    // 4. 系统控制层初始化（配置校验+看门狗）
     System_Ctrl_Init();
 
-    // 6. 创建所有应用任务（LED/UART/Monitor）
+    // 5. 协议层初始化（Modbus寄存器+回调）
+    Modbus_Init();
+    
+    // 6. 创建所有应用任务（UART/Device/Monitor）
     if (System_StartTasks() != SYSTEM_OK) {
         ErrorLogRecord(ERROR_SYSTEM, __FILE__, __LINE__);
         Error_Handler(); // 任务创建失败，进入安全模式
-    }
+    }    
 
     // 7. 启动FreeRTOS调度器（永不返回）
     osKernelStart();
     /* USER CODE END Init */
+    
 }
 
 /**
