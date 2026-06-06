@@ -147,7 +147,7 @@ BMP280_Error_t BMP280_Init(void) {
     delay_ms(10);
 
     // 5. 配置 CTRL_MEAS 寄存器（过采样 + 模式）
-    s_ctrl_meas = (BMP280_OVERSAMP_8X << 2) | (BMP280_OVERSAMP_16X << 5) | BMP280_NORMAL_MODE;
+    s_ctrl_meas = (BMP280_OVERSAMP_8X << 2) | (BMP280_OVERSAMP_16X << 5) | BMP280_FORCED_MODE;
     if (!BMP280_WriteReg(BMP280_CTRLMEAS_REG, s_ctrl_meas)) {
         return BMP280_ERR_CONFIG_WRITE;
     }
