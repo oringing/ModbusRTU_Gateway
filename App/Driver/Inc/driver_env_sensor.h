@@ -10,11 +10,12 @@ extern "C" {
 #endif
 
 #ifndef ENV_SENSOR_DRIVER_UART2_LOG_ENABLE
-#define ENV_SENSOR_DRIVER_UART2_LOG_ENABLE 1  // UART2 调试日志开关
+#    define ENV_SENSOR_DRIVER_UART2_LOG_ENABLE 0 // UART2 调试日志开关
 #endif
-//系统状态寄存器故障标志位
-#define ENV_SENSOR_STATUS_AHT20_OK  (1U << 4)  // Bit4: AHT20 正常
-#define ENV_SENSOR_STATUS_BMP280_OK (1U << 5)  // Bit5: BMP280 正常
+
+// 系统状态寄存器故障标志位
+#define ENV_SENSOR_STATUS_AHT20_OK (1U << 4)  // Bit4: AHT20 正常
+#define ENV_SENSOR_STATUS_BMP280_OK (1U << 5) // Bit5: BMP280 正常
 
 /**
  * @brief  初始化环境传感器驱动层

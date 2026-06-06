@@ -3,17 +3,30 @@
 #include "aht20.h"
 #include "bmp280.h"
 #include "driver_uart.h"
+#include "soft_i2c.h"
+#include "stm32f1xx_hal.h"
 
-static uint8_t s_sensor_status = 0U;
-static bool s_is_initialized = false;
-static bool s_last_values_valid = false;
-static float s_last_temperature = 0.0f;
-static float s_last_humidity = 0.0f;
-static float s_last_pressure = 0.0f;
-static uint8_t s_aht20_fail_count = 0U;
-static uint8_t s_bmp280_fail_count = 0U;
-static const uint8_t s_failure_threshold = 5U;
+// ---- 可调参数（性能调优）----
+#define SENSOR_RETRY_MAX_COUNT 2U     // 最大重试次数
+#define SENSOR_RETRY_DELAY_MS 10U     // 重试间隔(ms)
+#define SENSOR_LOG_THROTTLE_MS 10000U // 限流告警间隔(10秒)
+#define SENSOR_FAILURE_THRESHOLD 5U   // 连续失败阈值（达到后标记故障）
 
+// ---- 静态变量 ----
+#if ENV_SENSOR_DRIVER_UART2_LOG_ENABLE  // UART2 调试日志开关
+static uint32_t s_last_aht20_log_tick = 0;   // AHT20上次错误日志时间戳，用于限流
+static uint32_t s_last_bmp280_log_tick = 0;  // BMP280上次错误日志时间戳，用于限流
+#endif
+static uint8_t  s_sensor_status = 0U;        // 传感器状态位（Bit4=AHT20, Bit5=BMP280）
+static bool     s_is_initialized = false;    // 驱动层初始化标志
+static bool     s_last_values_valid = false; // 上次有效值是否可用
+static float    s_last_temperature = 0.0f;   // 上次有效温度（℃）
+static float    s_last_humidity = 0.0f;      // 上次有效湿度（%）
+static float    s_last_pressure = 0.0f;      // 上次有效气压（hPa）
+static uint8_t  s_aht20_fail_count = 0U;     // AHT20连续失败计数
+static uint8_t  s_bmp280_fail_count = 0U;    // BMP280连续失败计数
+
+// 更新传感器状态位
 static void EnvSensor_Driver_UpdateStatus(uint8_t mask, bool ok) {
     if (ok) {
         s_sensor_status |= mask;
@@ -23,49 +36,51 @@ static void EnvSensor_Driver_UpdateStatus(uint8_t mask, bool ok) {
 }
 
 #if ENV_SENSOR_DRIVER_UART2_LOG_ENABLE
+// 将AHT20错误码转为可读字符串（仅调试用）
 static const char* EnvSensor_Driver_AHT20ErrorToString(AHT20_Error_t err) {
     switch (err) {
-        case AHT20_OK:
-            return "AHT20 OK\r\n";
-        case AHT20_ERR_I2C_COMM:
-            return "AHT20 error: I2C communication\r\n";
-        case AHT20_ERR_STATUS_READ:
-            return "AHT20 error: status read\r\n";
-        case AHT20_ERR_BUSY_TIMEOUT:
-            return "AHT20 error: busy timeout\r\n";
-        case AHT20_ERR_CALIB_MISSING:
-            return "AHT20 error: calibration missing\r\n";
-        case AHT20_ERR_SEND_CMD:
-            return "AHT20 error: send command\r\n";
-        case AHT20_ERR_DATA_INVALID:
-            return "AHT20 error: data invalid\r\n";
-        default:
-            return "AHT20 error: unknown\r\n";
+    case AHT20_OK:
+        return "AHT20 OK\r\n";
+    case AHT20_ERR_I2C_COMM:
+        return "AHT20 error: I2C communication\r\n";
+    case AHT20_ERR_STATUS_READ:
+        return "AHT20 error: status read\r\n";
+    case AHT20_ERR_BUSY_TIMEOUT:
+        return "AHT20 error: busy timeout\r\n";
+    case AHT20_ERR_CALIB_MISSING:
+        return "AHT20 error: calibration missing\r\n";
+    case AHT20_ERR_SEND_CMD:
+        return "AHT20 error: send command\r\n";
+    case AHT20_ERR_DATA_INVALID:
+        return "AHT20 error: data invalid\r\n";
+    default:
+        return "AHT20 error: unknown\r\n";
     }
 }
 
+// 将BMP280错误码转为可读字符串（仅调试用）
 static const char* EnvSensor_Driver_BMP280ErrorToString(BMP280_Error_t err) {
     switch (err) {
-        case BMP280_OK:
-            return "BMP280 OK\r\n";
-        case BMP280_ERR_I2C_COMM:
-            return "BMP280 error: I2C communication\r\n";
-        case BMP280_ERR_CHIP_ID:
-            return "BMP280 error: invalid chip id\r\n";
-        case BMP280_ERR_CALIB_READ:
-            return "BMP280 error: calibration read\r\n";
-        case BMP280_ERR_RESET_FAIL:
-            return "BMP280 error: reset fail\r\n";
-        case BMP280_ERR_CONFIG_WRITE:
-            return "BMP280 error: config write\r\n";
-        case BMP280_ERR_STATUS_READ:
-            return "BMP280 error: status read\r\n";
-        case BMP280_ERR_DATA_READ:
-            return "BMP280 error: data read\r\n";
-        case BMP280_ERR_COMP_OVERFLOW:
-            return "BMP280 error: compensation overflow\r\n";
-        default:
-            return "BMP280 error: unknown\r\n";
+    case BMP280_OK:
+        return "BMP280 OK\r\n";
+    case BMP280_ERR_I2C_COMM:
+        return "BMP280 error: I2C communication\r\n";
+    case BMP280_ERR_CHIP_ID:
+        return "BMP280 error: invalid chip id\r\n";
+    case BMP280_ERR_CALIB_READ:
+        return "BMP280 error: calibration read\r\n";
+    case BMP280_ERR_RESET_FAIL:
+        return "BMP280 error: reset fail\r\n";
+    case BMP280_ERR_CONFIG_WRITE:
+        return "BMP280 error: config write\r\n";
+    case BMP280_ERR_STATUS_READ:
+        return "BMP280 error: status read\r\n";
+    case BMP280_ERR_DATA_READ:
+        return "BMP280 error: data read\r\n";
+    case BMP280_ERR_COMP_OVERFLOW:
+        return "BMP280 error: compensation overflow\r\n";
+    default:
+        return "BMP280 error: unknown\r\n";
     }
 }
 #endif
@@ -73,7 +88,7 @@ static const char* EnvSensor_Driver_BMP280ErrorToString(BMP280_Error_t err) {
 bool EnvSensor_Driver_Init(void) {
     UART2_Driver_DebugPrint("===== EnvSensor Driver Init Start =====\r\n");
     UART2_Driver_DebugPrint("EnvSensor_Driver_Init: calling AHT20_Init()\r\n");
-    bool ok = true;
+    bool          ok = true;
     AHT20_Error_t aht_status = AHT20_Init();
     UART2_Driver_DebugPrint("EnvSensor_Driver_Init: AHT20_Init returned\r\n");
 
@@ -108,6 +123,7 @@ bool EnvSensor_Driver_Init(void) {
 }
 
 bool EnvSensor_Driver_ReadData(float* temp, float* humi, float* pressure) {
+    // 1. 参数校验
     if (temp == NULL || humi == NULL || pressure == NULL) {
         return false;
     }
@@ -116,14 +132,26 @@ bool EnvSensor_Driver_ReadData(float* temp, float* humi, float* pressure) {
         return false;
     }
 
-    bool aht_ok = false;
-    bool bmp_ok = false;
-    float aht_temp = 0.0f;       // AHT20 温度（用于输出）
-    float aht_humi = 0.0f;       // AHT20 湿度
-    float bmp_press = 0.0f;      // BMP280 气压
-    float bmp_temp = 0.0f;       // BMP280 温度（仅用于传感器内部校准，不输出）
+    bool     aht_ok = false;
+    bool     bmp_ok = false;
+    float    aht_temp = 0.0f;
+    float    aht_humi = 0.0f;
+    float    bmp_press = 0.0f;
+    float    bmp_temp = 0.0f;
+    uint32_t now = HAL_GetTick();
 
-    AHT20_Error_t aht_result = AHT20_Read(&aht_temp, &aht_humi);
+    // 2. 读取 AHT20（带重试）
+    AHT20_Error_t aht_result = AHT20_ERR_I2C_COMM;
+    for (uint8_t retry = 0; retry < SENSOR_RETRY_MAX_COUNT; retry++) {
+        aht_result = AHT20_Read(&aht_temp, &aht_humi);
+        if (aht_result == AHT20_OK) {
+            break;
+        }
+        if (retry < SENSOR_RETRY_MAX_COUNT - 1) {
+            delay_ms(SENSOR_RETRY_DELAY_MS);
+        }
+    }
+
     if (aht_result == AHT20_OK) {
         aht_ok = true;
         s_aht20_fail_count = 0U;
@@ -133,16 +161,30 @@ bool EnvSensor_Driver_ReadData(float* temp, float* humi, float* pressure) {
     } else {
         s_aht20_fail_count++;
         EnvSensor_Driver_UpdateStatus(ENV_SENSOR_STATUS_AHT20_OK, false);
-        if (s_aht20_fail_count > s_failure_threshold) {
-            s_aht20_fail_count = s_failure_threshold;
+        if (s_aht20_fail_count > SENSOR_FAILURE_THRESHOLD) {
+            s_aht20_fail_count = SENSOR_FAILURE_THRESHOLD;
         }
 #if ENV_SENSOR_DRIVER_UART2_LOG_ENABLE
-        UART2_Driver_DebugPrint(EnvSensor_Driver_AHT20ErrorToString(aht_result));
+        // 限流打印：10秒内最多打印一次
+        if ((now - s_last_aht20_log_tick) >= SENSOR_LOG_THROTTLE_MS) {
+            s_last_aht20_log_tick = now;
+            UART2_Driver_DebugPrint(EnvSensor_Driver_AHT20ErrorToString(aht_result));
+        }
 #endif
     }
 
-    // BMP280 读取：气压存入 bmp_press，温度存入 bmp_temp（仅供 BMP280 内部校准）
-    BMP280_Error_t bmp_result = BMP280_Read(&bmp_press, &bmp_temp);
+    // 3. 读取 BMP280（带重试）
+    BMP280_Error_t bmp_result = BMP280_ERR_I2C_COMM;
+    for (uint8_t retry = 0; retry < SENSOR_RETRY_MAX_COUNT; retry++) {
+        bmp_result = BMP280_Read(&bmp_press, &bmp_temp);
+        if (bmp_result == BMP280_OK) {
+            break;
+        }
+        if (retry < SENSOR_RETRY_MAX_COUNT - 1) {
+            delay_ms(SENSOR_RETRY_DELAY_MS);
+        }
+    }
+
     if (bmp_result == BMP280_OK) {
         bmp_ok = true;
         s_bmp280_fail_count = 0U;
@@ -151,19 +193,24 @@ bool EnvSensor_Driver_ReadData(float* temp, float* humi, float* pressure) {
     } else {
         s_bmp280_fail_count++;
         EnvSensor_Driver_UpdateStatus(ENV_SENSOR_STATUS_BMP280_OK, false);
-        if (s_bmp280_fail_count > s_failure_threshold) {
-            s_bmp280_fail_count = s_failure_threshold;
+        if (s_bmp280_fail_count > SENSOR_FAILURE_THRESHOLD) {
+            s_bmp280_fail_count = SENSOR_FAILURE_THRESHOLD;
         }
 #if ENV_SENSOR_DRIVER_UART2_LOG_ENABLE
-        UART2_Driver_DebugPrint(EnvSensor_Driver_BMP280ErrorToString(bmp_result));
+        // 限流打印：10秒内最多打印一次
+        if ((now - s_last_bmp280_log_tick) >= SENSOR_LOG_THROTTLE_MS) {
+            s_last_bmp280_log_tick = now;
+            UART2_Driver_DebugPrint(EnvSensor_Driver_BMP280ErrorToString(bmp_result));
+        }
 #endif
     }
 
+    // 4. 标记上次有效值是否可用
     if (aht_ok || bmp_ok) {
         s_last_values_valid = true;
     }
 
-    // 输出：温度/湿度使用 AHT20 的值
+    // 5. 输出温度/湿度（优先用AHT20新值，失败则用上次有效值）
     if (aht_ok) {
         *temp = aht_temp;
         *humi = aht_humi;
@@ -175,7 +222,7 @@ bool EnvSensor_Driver_ReadData(float* temp, float* humi, float* pressure) {
         *humi = 0.0f;
     }
 
-    // 输出：气压使用 BMP280 的值
+    // 6. 输出气压（优先用BMP280新值，失败则用上次有效值）
     if (bmp_ok) {
         *pressure = bmp_press;
     } else if (s_last_values_valid) {
