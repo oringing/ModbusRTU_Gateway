@@ -105,3 +105,17 @@ uint16_t UART_Driver_Receive(uint8_t* buffer, uint16_t max_len, uint32_t timeout
 
     return 0;
 }
+
+bool UART_Driver_IsFrameReady(void) {
+    // 只读状态，无需加锁
+    return BSP_UART_IsFrameReady();
+}
+
+uint16_t UART_Driver_ReadFrame(uint8_t* buffer, uint16_t max_len) {
+    if (buffer == NULL || max_len == 0U) {
+        return 0;
+    }
+
+    // 读取帧是原子操作（内部已关中断保护）无需额外加锁，因为 BSP_UART_ReadFrame 本身是线程安全的
+    return BSP_UART_ReadFrame(buffer, max_len);
+}

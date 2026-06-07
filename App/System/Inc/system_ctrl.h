@@ -7,20 +7,20 @@
 #include <stdint.h>
 
 // ---- 看门狗配置（系统稳定性）----
-#define SYSTEM_USE_IWDG 1U              // 1=启用硬件看门狗, 0=禁用（调试时可关闭）
+#define SYSTEM_USE_IWDG 1U // 1=启用硬件看门狗, 0=禁用（调试时可关闭）
 // 看门狗超时时间 ≈ IWDG_RELOAD_VALUE(781) * 256 / 40000 秒 ≈ 5秒
-#define IWDG_RELOAD_VALUE 781U          // 看门狗重载值，5秒超时
-#define IWDG_WINDOW_VALUE 4095U         // 窗口值(最大值=禁用窗口功能)
+#define IWDG_RELOAD_VALUE 781U  // 看门狗重载值，5秒超时
+#define IWDG_WINDOW_VALUE 4095U // 窗口值(最大值=禁用窗口功能)
 
 // ---- 配置合理性校验阈值（最小值约束，防止配置错误导致崩溃），2026-05-18实测数据，峰值测试为每秒收发100帧----
-#define LED_TASK_STACK_MIN_WORDS 42U        // LED任务最小栈大小(words)，实测峰值28×1.5≈42
-#define UART_TASK_STACK_MIN_WORDS 123U      // UART任务最小栈大小(words)，实测峰值82×1.5≈123
-#define MONITOR_TASK_STACK_MIN_WORDS 60U    // Monitor任务最小栈大小(words)，实测峰值40×1.5≈60
-#define BSP_UART_RX_BUF_MIN_SIZE 256U       // UART接收缓冲区最小尺寸(bytes)
-#define MODBUS_BUFFER_MIN_SIZE 256U         // Modbus缓冲区最小尺寸(bytes)
-#define BSP_UART_TX_TIMEOUT_MIN_MS 1U       // UART发送超时最小值(ms)，不能为0
+#define DEVICE_TASK_STACK_MIN_WORDS 203U    // DEVICE任务最小栈大小，实际开启传感器数据日志打印时156，关闭时则大幅减小
+#define UART_TASK_STACK_MIN_WORDS 76U       // UART任务最小栈大小，实际58
+#define MONITOR_TASK_STACK_MIN_WORDS 104U   // Monitor任务最小栈大小，实际80
+#define BSP_UART_RX_BUF_MIN_SIZE 256U        // UART接收缓冲区最小尺寸(bytes)
+#define MODBUS_BUFFER_MIN_SIZE 256U          // Modbus缓冲区最小尺寸(bytes)
+#define BSP_UART_TX_TIMEOUT_MIN_MS 1U        // UART发送超时最小值(ms)，不能为0
 #define SYSTEM_TASK_STOP_TIMEOUT_MIN_MS 100U // 任务停止超时最小值(ms)
-#define SYSTEM_STACK_LOG_BUF_SIZE 80U       // 栈水位日志缓冲区大小(bytes)
+#define SYSTEM_STACK_LOG_BUF_SIZE 80U        // 栈水位日志缓冲区大小(bytes)
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +33,7 @@ typedef enum {
     SYSTEM_OK = 0,                 // 成功
     SYSTEM_ERR_NULL_PTR,           // 空指针错误
     SYSTEM_ERR_CONFIG_INVALID,     // 配置无效
-    SYSTEM_ERR_TASK_CREATE_LED,    // LED任务创建失败
+    SYSTEM_ERR_TASK_CREATE_DEVICE, // DEVICE任务创建失败
     SYSTEM_ERR_TASK_CREATE_UART,   // UART任务创建失败
     SYSTEM_ERR_TASK_CREATE_MONITOR // Monitor任务创建失败
 } SystemStatus_t;
@@ -42,10 +42,10 @@ typedef enum {
  * @brief   任务ID枚举（用于优先级动态调整接口）
  */
 typedef enum {
-    SYSTEM_TASK_UART,     // UART任务
-    SYSTEM_TASK_LED,      // LED任务
-    SYSTEM_TASK_MONITOR,  // Monitor任务
-    SYSTEM_TASK_MAX       // 任务总数(用于数组大小)
+    SYSTEM_TASK_UART,    // UART任务
+    SYSTEM_TASK_DEVICE,  // DEVICE任务
+    SYSTEM_TASK_MONITOR, // Monitor任务
+    SYSTEM_TASK_MAX      // 任务总数(用于数组大小)
 } SystemTaskId_t;
 
 /**
@@ -95,14 +95,14 @@ void System_Test_Watchdog_Reset(void);
 void System_Ctrl_Init(void);
 
 /**
- * @brief   启动所有任务（LED/UART/Monitor）
+ * @brief   启动所有任务（DEVICE/UART/Monitor）
  * @return  SYSTEM_OK=成功，其他=首个失败的任务错误码
  * @warning 任一任务创建失败会自动回滚已创建的任务
  */
 SystemStatus_t System_StartTasks(void);
 
 /**
- * @brief   停止所有任务（顺序：Monitor→UART→LED）
+ * @brief   停止所有任务（顺序：Monitor→UART→DEVICE）
  * @warning 先请求优雅退出，超时后强制终止
  */
 void System_StopTasks(void);

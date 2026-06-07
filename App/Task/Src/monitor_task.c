@@ -56,7 +56,7 @@ void Start_Monitor_Task(void const* argument) {
         // 基础循环延时，保持任务活跃并让出CPU
         osDelay(MONITOR_TASK_BASE_DELAY);
     }
-
+    
 }
 
 void Monitor_Task_RequestStop(void) {

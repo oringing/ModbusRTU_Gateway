@@ -19,11 +19,13 @@ extern "C" {
 #define SOFT_I2C_SCL_1 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SCL, GPIO_PIN_SET)   // SCL 置高
 #define SOFT_I2C_SDA_0 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_RESET) // SDA 置低
 #define SOFT_I2C_SDA_1 HAL_GPIO_WritePin(SOFT_I2C_PORT, SOFT_I2C_SDA, GPIO_PIN_SET)   // SDA 置高
-#define SOFT_I2C_SDA_READ HAL_GPIO_ReadPin(SOFT_I2C_PORT, SOFT_I2C_SDA)               // 读取 SDA 电平（0 或 1）
+#define SOFT_I2C_SDA_READ HAL_GPIO_ReadPin(SOFT_I2C_PORT, SOFT_I2C_SDA) // 读取 SDA 电平（0 或 1）
 
 // ---- 时序与重试参数（性能调优）----
-#define I2C_WAIT_ACK_MAX_RETRY 250U    // ACK 等待超时计数（约 1.25ms @ 5μs/次）
-#define I2C_DEFAULT_RETRY_MS 55U       // 操作失败后重试间隔（毫秒），传入 0 表示不重试
+#define I2C_WAIT_ACK_MAX_RETRY 250U // ACK 等待超时计数（约 1.25ms @ 5μs/次）
+#define I2C_DEFAULT_RETRY_MS 55U    // 操作失败后重试间隔（毫秒），传入 0 表示不重试
+// === 超时保护 ===
+#define I2C_WAIT_ACK_TIMEOUT_MS 10U  // ACK 等待超时（毫秒），防止断线卡死
 
 /**
  * @brief   初始化软件 I2C 总线
@@ -92,6 +94,21 @@ bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char* dat
  */
 bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd, unsigned char* data,
                                  unsigned short len);
+// soft_i2c.h 末尾添加
+
+/**
+ * @brief   毫秒级阻塞延时（基于空循环累加）
+ * @param   ms 延时毫秒数，范围 1~1000
+ * @warning 阻塞函数，仅在 BSP 初始化阶段或 RTOS 未启动时使用
+ * @note    通过 Soft_I2C_Delay 累加实现，仅用于传感器硬件初始化
+ */
+void delay_ms(uint32_t ms);
+
+/**
+ * @brief   恢复 I2C 总线（发送 9 个时钟脉冲 + 停止条件 + 重新初始化）
+ * @note    当 I2C 总线进入异常状态时调用，用于释放被占用的总线
+ */
+void I2C_Bus_Recover(void);
 
 #ifdef __cplusplus
 }

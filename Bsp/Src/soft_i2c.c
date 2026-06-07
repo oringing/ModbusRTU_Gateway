@@ -1,18 +1,30 @@
 // Bsp/Src/soft_i2c.c
+#include "cmsis_os.h"  // 添加这个头文件
 #include "soft_i2c.h"
 #include "stm32f1xx_hal.h"
 
-// 基于逻辑分析仪实测校准：72MHz 主频下，该循环约 5μs
-// 满足 I2C 100kHz 标准要求（tLOW≥4.7μs，tHIGH≥4.0μs）
+// 软件 I2C 位延时（约 5μs）
 static void Soft_I2C_Delay(void) {
     for (volatile uint32_t i = 0; i < 8; i++) {
-        __NOP(); // 防止编译器优化，确保精确延时
+        __NOP();
     }
 }
 
-// 全局重试间隔（单位：ms）。值为 0 表示不重试；可通过 Set_I2C_Retry 修改
-// 访问规则：BSP 初始化或任务上下文可修改，ISR 中请勿修改
-static unsigned short RETRY_IN_MLSEC = I2C_DEFAULT_RETRY_MS; // 默认重试间隔 55ms
+void delay_ms(uint32_t ms) {
+    // 如果调度器已运行，使用 RTOS 延时（让出 CPU）
+    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
+        vTaskDelay(pdMS_TO_TICKS(ms));
+    } else {
+        // 调度器未启动，使用空循环
+        volatile uint32_t count = ms * 12000;  // 72MHz 校准值
+        while (count--) {
+            __NOP();
+        }
+    }
+}
+
+// 全局重试间隔，默认 55ms，0 表示不重试,BSP 初始化或任务上下文可修改，ISR 中请勿修改
+static unsigned short RETRY_IN_MLSEC = I2C_DEFAULT_RETRY_MS;
 
 void Set_I2C_Retry(unsigned short ml_sec) {
     RETRY_IN_MLSEC = ml_sec;
@@ -39,8 +51,7 @@ void I2C_Bus_Init(void) {
     Soft_I2C_Delay();
 }
 
-// 生成 I2C 起始条件（SDA 在 SCL 为高时从高->低）
-// 检测总线忙态，避免在总线被占用时强行拉低导致冲突
+// 起始条件：SCL 高电平期间 SDA 由高变低，同时检测总线忙
 static uint8_t Soft_I2C_Start(void) {
     SOFT_I2C_SDA_1;
     Soft_I2C_Delay();
@@ -62,7 +73,7 @@ static uint8_t Soft_I2C_Start(void) {
     return 0;
 }
 
-// 生成 I2C 停止条件（SDA 在 SCL 高时从低->高）
+// 停止条件：SCL 高电平期间 SDA 由低变高
 static void Soft_I2C_Stop(void) {
     SOFT_I2C_SDA_0;
     Soft_I2C_Delay();
@@ -84,8 +95,7 @@ static void Soft_I2C_SendAck(void) {
     Soft_I2C_Delay();
 }
 
-// 主机发送 NACK（释放 SDA，由外部上拉至高电平）
-// 读取最后一个字节后通知从机停止发送
+// 主机发送 NACK（释放 SDA）
 static void Soft_I2C_SendNack(void) {
     SOFT_I2C_SDA_1;
     Soft_I2C_Delay();
@@ -95,10 +105,9 @@ static void Soft_I2C_SendNack(void) {
     Soft_I2C_Delay();
 }
 
-// 等待从机应答（第 9 个时钟周期读取 SDA）
-// 通过轮询检测 ACK，超时由 I2C_WAIT_ACK_MAX_RETRY 控制
+// 等待从机应答：第 9 个时钟周期检查 SDA 是否被拉低
 static uint8_t Soft_I2C_WaitAck(void) {
-    uint8_t timeout = 0;
+    uint32_t start_tick = HAL_GetTick();
 
     SOFT_I2C_SDA_1;
     Soft_I2C_Delay();
@@ -106,8 +115,8 @@ static uint8_t Soft_I2C_WaitAck(void) {
     Soft_I2C_Delay();
 
     while (SOFT_I2C_SDA_READ) {
-        timeout++;
-        if (timeout > I2C_WAIT_ACK_MAX_RETRY) {
+        // 超时保护（基于系统 tick）
+        if ((HAL_GetTick() - start_tick) >= I2C_WAIT_ACK_TIMEOUT_MS) {
             Soft_I2C_Stop();
             return 2; // 无应答超时
         }
@@ -118,7 +127,7 @@ static uint8_t Soft_I2C_WaitAck(void) {
     return 0;
 }
 
-// 发送一个字节（MSB 优先），返回从机应答状态（0=ACK，非0=错误/超时）
+// 发送一个字节（MSB 优先），返回从机应答状态
 static uint8_t Soft_I2C_SendByte(uint8_t data) {
     uint8_t i;
 
@@ -140,8 +149,7 @@ static uint8_t Soft_I2C_SendByte(uint8_t data) {
     return Soft_I2C_WaitAck();
 }
 
-// 接收一个字节并发送 NACK（用于读取最后一个字节）
-// 逐位采样 SDA，并在结束后发送 NACK
+// 接收一个字节，最后发送 NACK（用于读取最后一个字节）
 static uint8_t Soft_I2C_ReceiveByte(void) {
     uint8_t i, data = 0;
 
@@ -191,8 +199,9 @@ static uint8_t Soft_I2C_WriteReg(uint8_t dev_addr, uint8_t reg_addr, uint16_t le
     uint8_t i, result;
 
     result = Soft_I2C_Start();
-    if (result)
+    if (result) {
         return result;
+    }
 
     result = Soft_I2C_SendByte((dev_addr << 1) | 0);
     if (result) {
@@ -223,8 +232,9 @@ static uint8_t Soft_I2C_ReadReg(uint8_t dev_addr, uint8_t reg_addr, uint16_t len
     uint8_t result;
 
     result = Soft_I2C_Start();
-    if (result)
+    if (result) {
         return result;
+    }
 
     result = Soft_I2C_SendByte((dev_addr << 1) | 0);
     if (result) {
@@ -266,30 +276,33 @@ static uint8_t Soft_I2C_ReadReg(uint8_t dev_addr, uint8_t reg_addr, uint16_t len
 
 bool Sensors_I2C_WriteRegister(unsigned char slave_addr, unsigned char reg_addr, unsigned short len,
                                const unsigned char* data_ptr) {
-    bool           ret;
+    bool ret;
     unsigned short retry = Get_I2C_Retry();
 
     do {
         ret = (Soft_I2C_WriteReg(slave_addr, reg_addr, len, data_ptr) == 0);
-        if (ret)
+        if (ret) {
             break;
-        HAL_Delay(retry);
-    } while (retry);
+        }
+        if (retry) delay_ms(retry);
+    } while (retry--);
 
     return ret;
 }
 
+
 bool Sensors_I2C_ReadRegister(unsigned char slave_addr, unsigned char reg_addr, unsigned short len,
                               unsigned char* data_ptr) {
-    bool           ret;
+    bool ret;
     unsigned short retry = Get_I2C_Retry();
 
     do {
         ret = (Soft_I2C_ReadReg(slave_addr, reg_addr, len, data_ptr) == 0);
-        if (ret)
+        if (ret) {
             break;
-        HAL_Delay(retry);
-    } while (retry);
+        }
+        if (retry) delay_ms(retry);
+    } while (retry--);
 
     return ret;
 }
@@ -301,8 +314,9 @@ static uint8_t Soft_I2C_WriteCmd(uint8_t dev_addr, uint16_t len, const uint8_t* 
     uint8_t i, result;
 
     result = Soft_I2C_Start();
-    if (result)
+    if (result) {
         return result;
+    }
 
     result = Soft_I2C_SendByte((dev_addr << 1) | 0);
     if (result) {
@@ -327,8 +341,9 @@ static uint8_t Soft_I2C_WriteAddrAndCmd(uint8_t dev_addr, uint8_t cmd) {
     uint8_t result;
 
     result = Soft_I2C_Start();
-    if (result)
+    if (result) {
         return result;
+    }
 
     result = Soft_I2C_SendByte((dev_addr << 1) | 0);
     if (result) {
@@ -380,8 +395,9 @@ static uint8_t Soft_I2C_ReadCmdData(uint8_t dev_addr, uint8_t cmd, uint16_t len,
     uint8_t result;
 
     result = Soft_I2C_WriteAddrAndCmd(dev_addr, cmd);
-    if (result)
+    if (result) {
         return result;
+    }
 
     result = Soft_I2C_RestartAndRead(dev_addr, len, data);
     return result;
@@ -389,33 +405,68 @@ static uint8_t Soft_I2C_ReadCmdData(uint8_t dev_addr, uint8_t cmd, uint16_t len,
 
 bool Sensors_I2C_WriteCommand(unsigned char slave_addr, const unsigned char* data,
                               unsigned short len) {
-    bool           ret;
+    bool ret;
     unsigned short retry = Get_I2C_Retry();
 
-    if (data == NULL || len == 0)
+    if (data == NULL || len == 0) {
         return false;
+    }
 
     do {
         ret = (Soft_I2C_WriteCmd(slave_addr, len, data) == 0);
-        if (ret)
+        if (ret) {
             break;
-        HAL_Delay(retry);
-    } while (retry);
+        }
+        if (retry) delay_ms(retry);
+    } while (retry--);
 
     return ret;
 }
 
 bool Sensors_I2C_ReadCommandData(unsigned char slave_addr, unsigned char cmd, unsigned char* data,
                                  unsigned short len) {
-    bool           ret;
+    bool ret;
     unsigned short retry = Get_I2C_Retry();
 
     do {
         ret = (Soft_I2C_ReadCmdData(slave_addr, cmd, len, data) == 0);
-        if (ret)
+        if (ret) {
             break;
-        HAL_Delay(retry);
-    } while (retry);
+        }
+        if (retry) delay_ms(retry);
+    } while (retry--);
 
     return ret;
+}
+
+// I2C 总线恢复：发送 9 个时钟脉冲 + 停止条件 + 重新初始化 GPIO
+void I2C_Bus_Recover(void) {
+    uint8_t i;
+    
+    // 1. 配置 SCL 和 SDA 为推挽输出（强制控制总线）
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    
+    GPIO_InitStruct.Pin = SOFT_I2C_SCL | SOFT_I2C_SDA;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;  // 推挽输出
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(SOFT_I2C_PORT, &GPIO_InitStruct);
+    
+    // 2. 发送 9 个时钟脉冲，尝试释放从机
+    SOFT_I2C_SDA_1;  // 释放 SDA
+    for (i = 0; i < 9; i++) {
+        SOFT_I2C_SCL_0;
+        Soft_I2C_Delay();
+        SOFT_I2C_SCL_1;
+        Soft_I2C_Delay();
+    }
+    
+    // 3. 发送停止条件
+    Soft_I2C_Stop();
+    
+    // 4. 重新初始化为开漏输出
+    I2C_Bus_Init();
+    
+    // 5. 等待总线稳定
+    delay_ms(10);
 }

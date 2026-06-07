@@ -14,11 +14,11 @@
 #define BSP_UART1_RX_PIN GPIO_PIN_10 // USART1 RX引脚（PA10）
 
 // USART2(PA2 TX / PA3 RX) 调试日志/错误信息打印
-#define BSP_UART2_BAUDRATE    (115200U)
-#define BSP_UART2_INSTANCE    USART2
-#define BSP_UART2_GPIO_PORT   GPIOA
-#define BSP_UART2_TX_PIN      GPIO_PIN_2  // PA2
-#define BSP_UART2_RX_PIN      GPIO_PIN_3  // PA3
+#define BSP_UART2_BAUDRATE (115200U) // UART波特率，需与主机PLC保持一致
+#define BSP_UART2_INSTANCE USART2    // UART实例（USART2）
+#define BSP_UART2_GPIO_PORT GPIOA    // UART GPIO端口（PA2/PA3）
+#define BSP_UART2_TX_PIN GPIO_PIN_2  // USART2 TX引脚 PA2
+#define BSP_UART2_RX_PIN GPIO_PIN_3  // USART2 RX引脚 PA3
 
 // ---- 缓冲区配置（可调整）----
 #define BSP_UART_RX_BUF_SIZE (256U) // UART接收缓冲区大小(字节)，需≥Modbus最大帧长

@@ -4,7 +4,6 @@
 #include "driver_servo.h"
 #include "driver_uart.h"
 #include "task.h"
-#include "uart.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -12,7 +11,7 @@
 
 static uint8_t   modbus_rx_buffer[MODBUS_BUFFER_SIZE];          // 接收缓冲区，仅UART中断写入
 static uint8_t   modbus_tx_buffer[MODBUS_RESPONSE_BUFFER_SIZE]; // 发送缓冲区，任务间共享需互斥保护
-static osMutexId s_modbus_reg_mutex = NULL;                     // 寄存器数组互斥锁，保护holding_regs并发访问
+static osMutexId s_modbus_reg_mutex = NULL; // 寄存器数组互斥锁，保护holding_regs并发访问
 
 typedef struct {
     uint16_t                 value;         // 当前值
@@ -21,18 +20,19 @@ typedef struct {
     ModbusRegisterOnChange_t on_change;     // 值变化回调，仅在值改变时触发
 } ModbusRegister_t;
 
-static ModbusRegister_t holding_regs[MODBUS_REG_MAX_COUNT]; // 保持寄存器数组，受s_modbus_reg_mutex保护
+static ModbusRegister_t
+    holding_regs[MODBUS_REG_MAX_COUNT]; // 保持寄存器数组，受s_modbus_reg_mutex保护
 
-//（舵机寄存器默认值超出合法范围, 强制主机首次写入合法角度后舵机才能使用）
+// （舵机寄存器默认值超出合法范围, 强制主机首次写入合法角度后舵机才能使用）
 static const uint16_t s_default_regs[] = {
-    0x0000U,  // 对应地址 0x0000: AHT20 温度（预留）
-    0x1000U,  // 对应地址 0x0001: AHT20 湿度（预留）
-    0x2000U,  // 对应地址 0x0002: BMP280 气压（预留）
-    0x3000U,  // 对应地址 0x0003: 系统状态寄存器（心跳+标志位）
-    0x4000U,   // 对应地址 0x0004: 180° 舵机目标角度
-    0x5000U   // 对应地址 0x0005: 360° 舵机速度/方向
+    0x0000U, // 对应地址 0x0000: AHT20 温度
+    0x1000U, // 对应地址 0x0001: AHT20 湿度
+    0x2000U, // 对应地址 0x0002: BMP280 气压
+    0x3000U, // 对应地址 0x0003: 系统状态寄存器（心跳+标志位）
+    0x4000U, // 对应地址 0x0004: 180° 舵机目标角度
+    0x5000U  // 对应地址 0x0005: 360° 舵机速度/方向
 };
-//剩余地址0x0006-0x0009寄存器值默认为0x0000
+// 剩余地址0x0006-0x0009的寄存器值默认为0x0000
 
 // 内部函数声明
 static bool Modbus_ValidateFrame(const uint8_t* frame, uint16_t frame_len, uint8_t* func_code);
@@ -136,7 +136,8 @@ static void Modbus_SendException(uint8_t func_code, uint8_t exception_code) {
     error_response[MODBUS_CRC_LOW_BYTE_IDX] = (uint8_t)(error_crc & 0xFFU);
     error_response[MODBUS_CRC_HIGH_BYTE_IDX] = (uint8_t)((error_crc >> 8U) & 0xFFU);
 
-    (void)UART1_Driver_ModbusSend(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE, BSP_UART_TX_TIMEOUT);
+    (void)UART1_Driver_ModbusSend(error_response, MODBUS_EXCEPTION_RESPONSE_SIZE,
+                                  BSP_UART_TX_TIMEOUT);
 }
 
 // 验证帧合法性：地址匹配、最小长度、CRC校验（小端序）
@@ -192,7 +193,7 @@ static void Modbus_BuildReadResponse(uint16_t start_addr, uint16_t reg_count) {
     modbus_tx_buffer[resp_data_len + 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
     (void)UART1_Driver_ModbusSend(modbus_tx_buffer, (uint16_t)(resp_data_len + MODBUS_CRC_LEN),
-                           BSP_UART_TX_TIMEOUT);
+                                  BSP_UART_TX_TIMEOUT);
 }
 
 // 处理0x03请求：解析地址数量，边界检查后调用响应构建
@@ -255,7 +256,8 @@ static void Modbus_HandleWriteSingleReg(const uint8_t* frame, uint16_t frame_len
     modbus_tx_buffer[MODBUS_RTU_WRITE_SINGLE_REQ_LEN - 2U] = (uint8_t)(resp_crc & 0xFFU);
     modbus_tx_buffer[MODBUS_RTU_WRITE_SINGLE_REQ_LEN - 1U] = (uint8_t)((resp_crc >> 8U) & 0xFFU);
 
-    (void)UART1_Driver_ModbusSend(modbus_tx_buffer, MODBUS_RTU_WRITE_SINGLE_REQ_LEN, BSP_UART_TX_TIMEOUT);
+    (void)UART1_Driver_ModbusSend(modbus_tx_buffer, MODBUS_RTU_WRITE_SINGLE_REQ_LEN,
+                                  BSP_UART_TX_TIMEOUT);
 }
 
 bool Modbus_ReadHoldingRegister(uint16_t addr, uint16_t* value) {

@@ -4,7 +4,9 @@
 #include "stm32f1xx_hal.h"
 #include "uart.h"
 
-// 发送命令（无寄存器地址，直接写命令字节）， 用于 AHT20 的命令型交互（如触发测量、软复位）
+#include <stdio.h>
+
+// 打包命令并发送，AHT20 采用命令式交互，无寄存器地址
 static bool AHT20_SendCmd(uint8_t cmd, const uint8_t* param, uint8_t param_len) {
     uint8_t buf[3];
     uint8_t total = 1 + param_len;
@@ -21,7 +23,7 @@ static bool AHT20_SendCmd(uint8_t cmd, const uint8_t* param, uint8_t param_len) 
     return Sensors_I2C_WriteCommand(AHT20_I2C_ADDR, buf, total);
 }
 
-// 读取测量结果（先写 0x71 命令，再读 6 字节），调用时需保证 data 有至少 6 字节缓冲
+// 发送 0x71 命令后读取 6 字节测量结果
 static bool AHT20_ReadMeasurement(uint8_t* data) {
     if (data == NULL) {
         return false;
@@ -29,7 +31,7 @@ static bool AHT20_ReadMeasurement(uint8_t* data) {
     return Sensors_I2C_ReadCommandData(AHT20_I2C_ADDR, AHT20_CMD_STATUS, data, 6);
 }
 
-// 读取单字节状态，通过 Sensors_I2C_ReadCommandData 读取状态寄存器
+// 读取单字节状态寄存器
 static bool AHT20_ReadStatus(uint8_t* status) {
     if (status == NULL) {
         return false;
@@ -37,113 +39,120 @@ static bool AHT20_ReadStatus(uint8_t* status) {
     return Sensors_I2C_ReadCommandData(AHT20_I2C_ADDR, AHT20_CMD_STATUS, status, 1);
 }
 
-// 解析原始测量数据并做合理性校验，按数据手册拆分 20 位湿度和 20 位温度原始值，转换为工程量并校验范围
+// 将 20 位原始数据转换为温湿度物理量，并校验是否在合理范围内
 static bool AHT20_ParseData(const uint8_t* raw, float* temp, float* humi) {
     uint32_t hum_raw, temp_raw;
 
+    // 湿度：raw[1]高8位，raw[2]中8位，raw[3]高4位
     hum_raw = ((uint32_t)raw[1] << 12) | ((uint32_t)raw[2] << 4) | ((uint32_t)raw[3] >> 4);
 
+    // 温度：raw[3]低4位，raw[4]高8位，raw[5]低8位
     temp_raw = ((uint32_t)(raw[3] & 0x0FU) << 16) | ((uint32_t)raw[4] << 8) | (uint32_t)raw[5];
 
     *humi = (float)hum_raw * AHT20_HUMIDITY_FACTOR / AHT20_DATA_SCALE;
     *temp = (float)temp_raw * AHT20_TEMP_FACTOR / AHT20_DATA_SCALE - AHT20_TEMP_OFFSET;
 
-    if (*temp < AHT20_TEMP_MIN || *temp > AHT20_TEMP_MAX)
+    if (*temp < AHT20_TEMP_MIN || *temp > AHT20_TEMP_MAX) {
         return false;
-    if (*humi < AHT20_HUMI_MIN || *humi > AHT20_HUMI_MAX)
+    }
+    if (*humi < AHT20_HUMI_MIN || *humi > AHT20_HUMI_MAX) {
         return false;
+    }
 
     return true;
 }
 
-// 判断校准位（Bit3）是否已完成
+// 检查状态寄存器的 Bit3（校准使能位）
 static bool AHT20_IsCalibrated(uint8_t status) {
     return ((status & 0x08U) != 0U);
 }
 
-// 判断传感器是否空闲（measuring 位为 0）
+// 检查状态寄存器的 Bit7（忙标志位），0 表示空闲
 static bool AHT20_IsIdle(uint8_t status) {
     return ((status & 0x80U) == 0U);
 }
 
-bool AHT20_Init(void) {
+AHT20_Error_t AHT20_Init(void) {
     uint8_t status = 0;
 
-    HAL_Delay(AHT20_POWER_UP_DELAY_MS);
+    // 1. 上电后等待传感器稳定
+    delay_ms(AHT20_POWER_UP_DELAY_MS);
 
+    // 2. 读取状态寄存器
     if (!AHT20_ReadStatus(&status)) {
-        BSP_UART2_DebugPrint("AHT20 init failed: read status\r\n");
-        return false;
+        return AHT20_ERR_STATUS_READ;
     }
 
+    // 3. 轮询等待传感器退出忙状态
     for (uint8_t i = 0; i < 10; i++) {
-        if (AHT20_IsIdle(status))
+        if (AHT20_IsIdle(status)) {
             break;
-        HAL_Delay(10);
+        }
+        delay_ms(10);
         if (!AHT20_ReadStatus(&status)) {
-            BSP_UART2_DebugPrint("AHT20 init failed: read status retry\r\n");
-            return false;
+            return AHT20_ERR_STATUS_READ;
         }
     }
 
+    // 4. 检查校准位，未校准则执行软复位
     if (!AHT20_IsCalibrated(status)) {
         if (!AHT20_SendCmd(AHT20_CMD_SOFT_RESET, NULL, 0)) {
-            BSP_UART2_DebugPrint("AHT20 init failed: soft reset\r\n");
-            return false;
+            return AHT20_ERR_SEND_CMD;
         }
-        HAL_Delay(AHT20_SOFT_RESET_DELAY_MS);
+        delay_ms(AHT20_SOFT_RESET_DELAY_MS);
+
         if (!AHT20_ReadStatus(&status)) {
-            BSP_UART2_DebugPrint("AHT20 init failed: status after reset\r\n");
-            return false;
+            return AHT20_ERR_STATUS_READ;
         }
         if (!AHT20_IsCalibrated(status)) {
-            BSP_UART2_DebugPrint("AHT20 init failed: calibration missing\r\n");
-            return false;
+            return AHT20_ERR_CALIB_MISSING;
         }
     }
 
-    return true;
+    return AHT20_OK;
 }
 
-bool AHT20_Read(float* temp, float* humi) {
+AHT20_Error_t AHT20_Read(float* temp, float* humi) {
     uint8_t raw_data[6] = {0};
     uint8_t measure_param[2] = {AHT20_MEASURE_DATA0, AHT20_MEASURE_DATA1};
     uint8_t status = 0;
 
-    if (temp == NULL || humi == NULL)
-        return false;
-
-    if (!AHT20_SendCmd(AHT20_CMD_MEASURE, measure_param, 2)) {
-        BSP_UART2_DebugPrint("AHT20 read failed: send measure command\r\n");
-        return false;
+    if (temp == NULL || humi == NULL) {
+        return AHT20_ERR_DATA_INVALID;
     }
 
-    HAL_Delay(AHT20_MEASURE_DELAY_MS);
+    // 1. 触发测量
+    if (!AHT20_SendCmd(AHT20_CMD_MEASURE, measure_param, 2)) {
+        return AHT20_ERR_SEND_CMD;
+    }
 
+    // 2. 等待测量完成
+    delay_ms(AHT20_MEASURE_DELAY_MS);
+
+    // 3. 轮询等待传感器空闲
     for (uint8_t i = 0; i < 10; i++) {
         if (!AHT20_ReadStatus(&status)) {
-            BSP_UART2_DebugPrint("AHT20 read failed: status polling\r\n");
-            return false;
+            return AHT20_ERR_STATUS_READ;
         }
-        if (AHT20_IsIdle(status))
+        if (AHT20_IsIdle(status)) {
             break;
-        HAL_Delay(10);
+        }
+        delay_ms(10);
     }
 
     if (!AHT20_IsIdle(status)) {
-        BSP_UART2_DebugPrint("AHT20 read failed: sensor busy\r\n");
-        return false;
+        return AHT20_ERR_BUSY_TIMEOUT;
     }
 
+    // 4. 读取 6 字节原始数据
     if (!AHT20_ReadMeasurement(raw_data)) {
-        BSP_UART2_DebugPrint("AHT20 read failed: measurement read\r\n");
-        return false;
+        return AHT20_ERR_I2C_COMM;
     }
 
+    // 5. 解析并校验数据
     if (!AHT20_ParseData(raw_data, temp, humi)) {
-        BSP_UART2_DebugPrint("AHT20 read failed: data parse invalid\r\n");
-        return false;
+        return AHT20_ERR_DATA_INVALID;
     }
 
-    return true;
+    return AHT20_OK;
 }
