@@ -4,6 +4,113 @@
 
 > 基于 STM32F1 + FreeRTOS 的工业级 Modbus RTU 协议从机网关，具备高稳定性 UART 接收链、故障自恢复机制、双路异构舵机控制与系统心跳监控。
 
+## 系统架构图
+
+```mermaid
+flowchart TD
+    %% ================= 样式定义 =================
+    classDef layer fill:#f9f9f9,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5;
+    classDef node_task fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1;
+    classDef node_sys fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#e65100;
+    classDef node_proto fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20;
+    classDef node_drv fill:#fff8e1,stroke:#fbc02d,stroke-width:2px,color:#f57f17;
+    classDef node_bsp fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#4a148c;
+    classDef node_hw fill:#eceff1,stroke:#455a64,stroke-width:2px,color:#263238;
+
+    %% ================= 1. 任务层 =================
+    subgraph task ["🔷 任务层 Task Layer"]
+        direction TB
+        uart_t["UART_Task<br/>Modbus 帧接收与应答"]
+        dev_t["Device_Task<br/>传感器采集 · 舵机控制"]
+        mon_t["Monitor_Task<br/>心跳监控 · 栈水位 · 喂狗"]
+    end
+
+    %% ================= 2. 系统控制层 =================
+    subgraph system ["🔶 系统控制层 System Layer"]
+        direction TB
+        sys_ctrl["System Ctrl<br/>配置校验 Fail-Fast<br/>任务生命周期管理<br/>硬件故障熔断与降级"]
+        err_hdl["Error Handler<br/>UART 错误分级恢复<br/>连续错误 ≥10 次熔断"]
+        wdg["IWDG 独立看门狗<br/>5s 超时硬件复位"]
+    end
+
+    %% ================= 3. 协议层 =================
+    subgraph protocol ["🟢 协议层 Protocol Layer"]
+        direction TB
+        modbus["Modbus RTU 从机<br/>0x03 读 / 0x06 写<br/>CRC 校验 · 边界保护 · 互斥锁"]
+        regs["寄存器映射表<br/>心跳 0x0003<br/>舵机 0x0004 / 0x0005<br/>传感器 0x0006 ~ 0x0009"]
+    end
+
+    %% ================= 4. 驱动层 =================
+    subgraph driver ["🟡 驱动层 Driver Layer"]
+        direction TB
+        uart_drv["UART Driver<br/>双缓冲 · 互斥发送<br/>🛡️ 背靠背帧丢失防护"]
+        env_drv["EnvSensor Driver<br/>AHT20/BMP280 统一 API<br/>死区保护 ±5°C"]
+        servo_drv["Servo Driver<br/>脉宽级精确控制<br/>死区保护 0x76 ~ 0x88"]
+    end
+
+    %% ================= 5. BSP 层 =================
+    subgraph bsp ["🔵 板级支持包 BSP Layer"]
+        direction TB
+        usart1["USART1 Modbus<br/>IDLE 中断接收"]
+        usart2["USART2 Debug<br/>日志独立输出"]
+        i2c_sw["Software I2C<br/>GPIO 模拟 100kHz<br/>tLOW/tHIGH 实测校准"]
+        tim3["TIM3 PWM<br/>50Hz 舵机驱动"]
+        gpio["GPIO LED 控制"]
+    end
+
+    %% ================= 6. 硬件层 =================
+    subgraph hw ["⚫ 硬件平台 Hardware — STM32F103C8T6"]
+        direction TB
+        max485["MAX485<br/>RS-485 收发器"]
+        aht20["AHT20<br/>温湿度传感器"]
+        bmp280["BMP280<br/>气压传感器"]
+        sg90_a["180° SG90<br/>角度舵机 PA6"]
+        sg90_b["360° 舵机<br/>连续旋转 PA7"]
+        led["LED 指示灯"]
+    end
+
+    %% ================= 连线逻辑 (防交叉优化) =================
+    
+    %% 任务层 -> 系统层 & 协议层
+    task -->|"任务调度与管理"| system
+    task -->|"业务请求"| protocol
+
+    %% 系统层 -> 协议层 (关键修改：明确起点和终点，避免交叉)
+    %% "心跳监控" 走左侧路径，使用虚线区分
+    sys_ctrl -.-|"心跳寄存器监控"| regs
+    
+    %% "故障恢复" 走中间路径去驱动层，使用粗实线
+    sys_ctrl ==>|"UART 故障恢复"| driver
+
+    %% 协议层 -> 驱动层
+    protocol ==>|"帧收发指令"| driver
+
+    %% 驱动层 -> BSP 层
+    driver ==>|"外设抽象调用"| bsp
+
+    %% BSP 层 -> 硬件层
+    bsp ==>|"寄存器/总线操作"| hw
+
+    %% ================= 样式应用 =================
+    class uart_t,dev_t,mon_t node_task;
+    class sys_ctrl,err_hdl,wdg node_sys;
+    class modbus,regs node_proto;
+    class uart_drv,env_drv,servo_drv node_drv;
+    class usart1,usart2,i2c_sw,tim3,gpio node_bsp;
+    class max485,aht20,bmp280,sg90_a,sg90_b,led node_hw;
+
+    %% ================= 连线样式美化 =================
+    linkStyle default stroke:#555,stroke-width:1.5px,fill:none;
+    
+    %% 注意：Mermaid 注释必须独占一行，不能跟在代码后
+    
+    %% 故障恢复连线样式 (对应第 5 条连线)
+    linkStyle 4 stroke:#ef6c00,stroke-width:2px;
+    
+    %% 帧收发连线样式 (对应第 6 条连线)
+    linkStyle 5 stroke:#2e7d32,stroke-width:2px;
+```
+
 ##  技术亮点
 
 ### ✅  I2C 传感器驱动（软件模拟）
