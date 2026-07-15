@@ -1,7 +1,6 @@
 
 docs/ignore_docs/
 
-
 MDK-ARM/ModbusRTU_Gateway/
 MDK-ARM/*.uvguix.*
 MDK-ARM/*.uvoptx
@@ -18,6 +17,7 @@ MDK-ARM/*.uvoptx
 *.list
 *.scvd
 
+.reasonix
 .vscode/
 .mxproject
 *.ioc.backup
